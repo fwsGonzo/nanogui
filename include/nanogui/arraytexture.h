@@ -36,6 +36,11 @@ public:
     void setTile(short id, int x = 0, int y = 0);
     void setTiles(std::vector<short> vec);
 
+    typedef std::function<void(int btn, int mod, int tx, int ty)> on_tile_func_t;
+    void onTileMotion(on_tile_func_t&& callback) {
+      m_on_tile = std::move(callback);
+    }
+
     GLShader& imageShader() { return mShader; }
 
     Vector2f positionF() const { return mPos.cast<float>(); }
@@ -120,7 +125,8 @@ public:
 
     bool keyboardEvent(int key, int scancode, int action, int modifiers) override;
     bool keyboardCharacterEvent(unsigned int codepoint) override;
-    bool mouseDragEvent(const Vector2i &p, const Vector2i &rel, int button, int modifiers) override;
+    bool mouseDragEvent(const Vector2i &p, const Vector2i &rel, int btn, int mod) override;
+    bool mouseMotionEvent(const Vector2i& p, const Vector2i& rel, int btn, int mod) override;
     bool scrollEvent(const Vector2i &p, const Vector2f &rel) override;
 
     /// Function indicating whether the grid is currently visible.
@@ -159,11 +165,13 @@ private:
     int tile_w, tile_h;
     std::vector<GLshort> tiles;
 
+    on_tile_func_t m_on_tile = nullptr;
+
     // Image display parameters.
     float mScale;
     Vector2f mOffset;
-    bool mFixedScale;
-    bool mFixedOffset;
+    bool mFixedScale = true;
+    bool mFixedOffset = true;
 
     // Fine-tuning parameters.
     float mZoomSensitivity = 1.1f;
@@ -173,7 +181,7 @@ private:
     float mPixelInfoThreshold = -1;
 
     // Image pixel data display members.
-    std::function<std::pair<std::string, Color>(const Vector2i&)> mPixelInfoCallback;
+    std::function<std::pair<std::string, Color>(const Vector2i&)> mPixelInfoCallback = nullptr;
     float mFontScaleFactor = 0.2f;
 public:
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW

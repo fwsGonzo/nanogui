@@ -72,8 +72,7 @@ static const float deltaY = 8.0f;
 
 ArrayTexture::ArrayTexture(Widget* parent, const int tw, const int th, GLuint ttex)
     : Widget(parent), mImageID(ttex), tiles_x(tw), tiles(tw * th),
-      mScale(1.0f), mOffset(Vector2f::Zero()),
-      mFixedScale(false), mFixedOffset(false), mPixelInfoCallback(nullptr)
+      mScale(1.0f), mOffset(Vector2f::Zero())
 {
     assert(tw > 0 && th > 0);
     // widget size
@@ -213,6 +212,36 @@ bool ArrayTexture::mouseDragEvent(const Vector2i& p, const Vector2i& rel, int bu
     }
     return false;
 }
+bool ArrayTexture::mouseMotionEvent(const Vector2i& p, const Vector2i&, int btn, int mod)
+{
+  const Vector2f img = imageCoordinateAt(p.cast<float>());
+  const float x = img.x() - mPos.x() / mScale;
+  const float y = img.y() - mPos.y() / mScale;
+  /*
+  printf("Mouse motion: %d / %d, %d / %d: (%d, %d), (%d, %d)\n",
+          x, mImageSize.x(),  y, mImageSize.y(),
+          x >= borderPx, x < mImageSize.x() - borderPx,
+          y >= borderPx, y < mImageSize.y() - borderPx);
+  */
+  // check if inside border
+  if ( x >= borderPx && x < mImageSize.x() - borderPx
+    && y >= borderPx && y < mImageSize.y() - borderPx)
+  {
+    const int inX = x - borderPx;
+    const int inY = y - borderPx;
+    const int tx = inX / (tile_w + deltaX);
+    const int ty = inY / (tile_h + deltaY);
+    // verify mouse is inside tile dividers
+    const int dx = inX - tx * (tile_w + deltaX);
+    const int dy = inY - ty * (tile_h + deltaY);
+    if (dx < tile_w && dy < tile_h)
+    {
+      if (m_on_tile) m_on_tile(btn, mod, tx, ty);
+      return true;
+    }
+  }
+  return true;
+}
 
 bool ArrayTexture::gridVisible() const {
     return (mGridThreshold != -1) && (mScale > mGridThreshold);
@@ -339,8 +368,8 @@ void ArrayTexture::draw(NVGcontext* ctx) {
     Vector2f screenSize = screen->size().cast<float>();
     Vector2f scaleFactor = mScale * imageSizeF().cwiseQuotient(screenSize);
     Vector2f positionInScreen = absolutePosition().cast<float>();
-    //Vector2f positionAfterOffset = positionInScreen + mOffset;
-    Vector2f imagePosition = positionInScreen.cwiseQuotient(screenSize);
+    Vector2f positionAfterOffset = positionInScreen + mOffset;
+    Vector2f imagePosition = positionAfterOffset.cwiseQuotient(screenSize);
     glEnable(GL_SCISSOR_TEST);
     float r = screen->pixelRatio();
     glScissor(positionInScreen.x() * r,
