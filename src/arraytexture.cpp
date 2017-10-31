@@ -39,107 +39,34 @@ namespace {
 
         return tokens;
     }
-
-    constexpr char const *const defaultArrayVertexShader =
-        R"(#version 330
-        uniform vec2 scaleFactor;
-        uniform vec2 position;
-        in vec2 vertex;
-        in vec3 texCoords;
-        out vec3 uv;
-        void main() {
-            uv = texCoords;
-            vec2 scaledVertex = (vertex * scaleFactor) + position;
-            gl_Position  = vec4(2.0*scaledVertex.x - 1.0,
-                                1.0 - 2.0*scaledVertex.y,
-                                0.0, 1.0);
-        })";
-
-    constexpr char const *const defaultArrayFragmentShader =
-        R"(#version 330
-        uniform sampler2DArray image;
-        uniform float tile_id;
-        out vec4 color;
-        in vec3 uv;
-        void main() {
-            color = texture(image, uv);
-        })";
 }
 
 static const float borderPx = 4.0f;
 static const float deltaX = 8.0f;
 static const float deltaY = 8.0f;
 
-ArrayTexture::ArrayTexture(Widget* parent, const int tw, const int th, GLuint ttex)
-    : Widget(parent), mImageID(ttex), tiles_x(tw), tiles(tw * th),
+ArrayTexture::ArrayTexture(Widget* parent, int tw, int th, int x, int y)
+    : Widget(parent), tile_w(tw), tile_h(th), tiles_x(x), tiles_y(y),
       mScale(1.0f), mOffset(Vector2f::Zero())
 {
-    assert(tw > 0 && th > 0);
+    assert(x > 0 && y > 0 && tw > 0 && th > 0);
     // widget size
-    updateImageParameters();
-    mShader.init("ArrayShader",
-                 defaultArrayVertexShader,
-                 defaultArrayFragmentShader);
-
-    // generate vertices
-    MatrixXf vertices(2, 4 * tiles.size());
-    int i = 0;
-    for (int y = 0; y < th; y++)
-    for (int x = 0; x < tw; x++)
-    {
-      const float w = tile_w / (float) mImageSize.x();
-      const float h = tile_h / (float) mImageSize.y();
-      const float dx = (borderPx + (tile_w + deltaX) * x) / (float) mImageSize.x();
-      const float dy = (borderPx + (tile_h + deltaY) * y) / (float) mImageSize.y();
-      vertices.col(i*4 + 0) << dx+0, dy+0;
-      vertices.col(i*4 + 1) << dx+w, dy+0;
-      vertices.col(i*4 + 2) << dx+w, dy+h;
-      vertices.col(i*4 + 3) << dx+0, dy+h;
-      i++;
-    }
-
-    // dummy texcoords
-    MatrixXf uvs(3, 4 * tiles.size());
-
-    mShader.bind();
-    mShader.uploadAttrib("vertex", vertices);
-    mShader.uploadAttrib("texCoords", uvs);
-}
-ArrayTexture::ArrayTexture(Widget* parent, GLuint ttex)
-  : ArrayTexture(parent, 1, 1, ttex)  {}
-
-ArrayTexture::~ArrayTexture() {
-    mShader.free();
+    const int sizeX = this->tile_w * tiles_x + deltaX * (tiles_x-1);
+    const int sizeY = this->tile_h * tiles_y + deltaX * (tiles_y-1);
+    this->mImageSize = Vector2i(2 * borderPx + sizeX, 2 * borderPx + sizeY);
 }
 
-void ArrayTexture::bindImage(GLuint imageId) {
-    mImageID = imageId;
-    updateImageParameters();
-    fit();
-}
-void ArrayTexture::updateImageTexcoords()
+Vector2f ArrayTexture::tileSize() const noexcept
 {
-  // tile-based texcoords
-  MatrixXf uvs(3, 4 * tiles.size());
-  for (size_t i = 0; i < tiles.size(); i++)
-  {
-    uvs.col(i*4 + 0) << 0, 1, tiles[i];
-    uvs.col(i*4 + 1) << 1, 1, tiles[i];
-    uvs.col(i*4 + 2) << 1, 0, tiles[i];
-    uvs.col(i*4 + 3) << 0, 0, tiles[i];
-  }
-
-  mShader.bind();
-  mShader.uploadAttrib("texCoords", uvs);
+  const float w = tile_w / (float) mImageSize.x();
+  const float h = tile_h / (float) mImageSize.y();
+  return {w, h};
 }
-void ArrayTexture::setTile(short id, int x, int y) {
-    tiles.at(x + y * this->tiles_x) = id;
-    this->updateImageTexcoords();
-}
-void ArrayTexture::setTiles(std::vector<short> vec) {
-    vec.resize(tiles.size());
-    tiles = std::move(vec);
-    this->updateImageTexcoords();
+Vector2f ArrayTexture::tilePos(int x, int y) const noexcept
+{
+  const float dx = (borderPx + (tile_w + deltaX) * x) / (float) mImageSize.x();
+  const float dy = (borderPx + (tile_h + deltaY) * y) / (float) mImageSize.y();
+  return {dx, dy};
 }
 
 Vector2f ArrayTexture::imageCoordinateAt(const Vector2f& position) const {
@@ -375,31 +302,16 @@ void ArrayTexture::draw(NVGcontext* ctx) {
     glScissor(positionInScreen.x() * r,
               (screenSize.y() - positionInScreen.y() - size().y()) * r,
               size().x() * r, size().y() * r);
-    mShader.bind();
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D_ARRAY, mImageID);
-    mShader.setUniform("image", 0);
-    mShader.setUniform("scaleFactor", scaleFactor);
-    mShader.setUniform("position", imagePosition);
-    mShader.drawArray(GL_QUADS, 0, 4 * tiles.size());
+
+    // render content
+    if (m_on_content_render) m_on_content_render(*this, scaleFactor, imagePosition);
+
     glDisable(GL_SCISSOR_TEST);
 
     if (helpersVisible())
         drawHelpers(ctx);
 
     drawWidgetBorder(ctx);
-}
-
-void ArrayTexture::updateImageParameters() {
-    // Query the width of the OpenGL texture.
-    glBindTexture(GL_TEXTURE_2D_ARRAY, mImageID);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_WIDTH, &this->tile_w);
-    glGetTexLevelParameteriv(GL_TEXTURE_2D_ARRAY, 0, GL_TEXTURE_HEIGHT, &this->tile_h);
-    const int tiles_y = tiles.size() / tiles_x;
-    const int sizeX = this->tile_w * tiles_x + deltaX * (tiles_x-1);
-    const int sizeY = this->tile_h * tiles_y + deltaX * (tiles_y-1);
-    this->mImageSize = Vector2i(2 * borderPx + sizeX, 2 * borderPx + sizeY);
-    printf("Image size: %d, %d\n", mImageSize.x(), mImageSize.y());
 }
 
 void ArrayTexture::drawWidgetBorder(NVGcontext* ctx) const {

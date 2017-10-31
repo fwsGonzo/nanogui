@@ -28,20 +28,22 @@ NAMESPACE_BEGIN(nanogui)
  */
 class NANOGUI_EXPORT ArrayTexture : public Widget {
 public:
-    ArrayTexture(Widget* parent, int tw, int th, GLuint ttex);
-    ArrayTexture(Widget* parent, GLuint ttex);
-    ~ArrayTexture();
+    ArrayTexture(Widget* parent, int tw, int th, int tiles_x = 1, int tiles_y = 1);
 
-    void bindImage(GLuint imageId);
-    void setTile(short id, int x = 0, int y = 0);
-    void setTiles(std::vector<short> vec);
+    Vector2f tilePos(int tx, int ty) const noexcept;
+    Vector2f tileSize() const noexcept;
+    int tilesX() const noexcept { return this->tiles_x; }
+    int tilesY() const noexcept { return this->tiles_y; }
 
-    typedef std::function<void(int btn, int mod, int tx, int ty)> on_tile_func_t;
-    void onTileMotion(on_tile_func_t&& callback) {
+    typedef std::function<void(int btn, int mod, int tx, int ty)> on_tile_motion_t;
+    void onTileMotion(on_tile_motion_t&& callback) {
       m_on_tile = std::move(callback);
     }
 
-    GLShader& imageShader() { return mShader; }
+    typedef std::function<void(ArrayTexture&, Vector2f scale, Vector2f offset)> on_content_render_t;
+    void onContentRender(on_content_render_t&& callback) {
+      m_on_content_render = std::move(callback);
+    }
 
     Vector2f positionF() const { return mPos.cast<float>(); }
     Vector2f sizeF() const { return mSize.cast<float>(); }
@@ -143,10 +145,6 @@ public:
     void draw(NVGcontext* ctx) override;
 
 private:
-    // Helper image methods.
-    void updateImageParameters();
-    void updateImageTexcoords();
-
     // Helper drawing methods.
     void drawWidgetBorder(NVGcontext* ctx) const;
     void drawHelpers(NVGcontext* ctx) const;
@@ -157,15 +155,13 @@ private:
                         const Vector2i& pixel, float stride, float fontSize) const;
 
     // Image parameters.
-    GLShader mShader;
-    GLuint   mImageID;
     Vector2i mImageSize;
 
-    int tiles_x = 1;
+    const int tiles_x = 1;
+    const int tiles_y = 1;
     int tile_w, tile_h;
-    std::vector<GLshort> tiles;
-
-    on_tile_func_t m_on_tile = nullptr;
+    on_tile_motion_t m_on_tile = nullptr;
+    on_content_render_t m_on_content_render = nullptr;
 
     // Image display parameters.
     float mScale;
