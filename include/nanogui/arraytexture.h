@@ -34,13 +34,14 @@ public:
     Vector2f tileSize() const noexcept;
     int tilesX() const noexcept { return this->tiles_x; }
     int tilesY() const noexcept { return this->tiles_y; }
+    int tileCount() const noexcept { return tiles_x * tiles_y; }
 
     typedef std::function<void(int btn, int mod, int tx, int ty)> on_tile_motion_t;
     void onTileMotion(on_tile_motion_t&& callback) {
       m_on_tile = std::move(callback);
     }
 
-    typedef std::function<void(ArrayTexture&, Vector2f scale, Vector2f offset)> on_content_render_t;
+    typedef std::function<void(Vector2f scale, Vector2f offset)> on_content_render_t;
     void onContentRender(on_content_render_t&& callback) {
       m_on_content_render = std::move(callback);
     }

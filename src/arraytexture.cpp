@@ -304,7 +304,7 @@ void ArrayTexture::draw(NVGcontext* ctx) {
               size().x() * r, size().y() * r);
 
     // render content
-    if (m_on_content_render) m_on_content_render(*this, scaleFactor, imagePosition);
+    if (m_on_content_render) m_on_content_render(scaleFactor, imagePosition);
 
     glDisable(GL_SCISSOR_TEST);
 
