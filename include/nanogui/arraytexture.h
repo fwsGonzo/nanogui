@@ -34,7 +34,11 @@ public:
     Vector2f tileSize() const noexcept;
     int tilesX() const noexcept { return this->tiles_x; }
     int tilesY() const noexcept { return this->tiles_y; }
-    int tileCount() const noexcept { return tiles_x * tiles_y; }
+    int tilesTotal() const noexcept { return tiles_x * tiles_y; }
+
+    void setTileCount(int idx, int count) {
+      this->m_tile_counts.at(idx) = count;
+    }
 
     typedef std::function<void(int btn, int mod, int tx, int ty)> on_tile_motion_t;
     void onTileMotion(on_tile_motion_t&& callback) {
@@ -158,11 +162,13 @@ private:
     // Image parameters.
     Vector2i mImageSize;
 
-    const int tiles_x = 1;
-    const int tiles_y = 1;
-    int tile_w, tile_h;
+    const int tile_w;
+    const int tile_h;
+    const int tiles_x;
+    const int tiles_y;
     on_tile_motion_t m_on_tile = nullptr;
     on_content_render_t m_on_content_render = nullptr;
+    std::vector<int> m_tile_counts;
 
     // Image display parameters.
     float mScale;

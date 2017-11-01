@@ -54,19 +54,8 @@ ArrayTexture::ArrayTexture(Widget* parent, int tw, int th, int x, int y)
     const int sizeX = this->tile_w * tiles_x + deltaX * (tiles_x-1);
     const int sizeY = this->tile_h * tiles_y + deltaX * (tiles_y-1);
     this->mImageSize = Vector2i(2 * borderPx + sizeX, 2 * borderPx + sizeY);
-}
-
-Vector2f ArrayTexture::tileSize() const noexcept
-{
-  const float w = tile_w / (float) mImageSize.x();
-  const float h = tile_h / (float) mImageSize.y();
-  return {w, h};
-}
-Vector2f ArrayTexture::tilePos(int x, int y) const noexcept
-{
-  const float dx = (borderPx + (tile_w + deltaX) * x) / (float) mImageSize.x();
-  const float dy = (borderPx + (tile_h + deltaY) * y) / (float) mImageSize.y();
-  return {dx, dy};
+    // tile count array
+    this->m_tile_counts.resize(tiles_x * tiles_y);
 }
 
 Vector2f ArrayTexture::imageCoordinateAt(const Vector2f& position) const {
@@ -167,6 +156,7 @@ bool ArrayTexture::mouseMotionEvent(const Vector2i& p, const Vector2i&, int btn,
       return true;
     }
   }
+  if (m_on_tile) m_on_tile(btn, mod, -1, 0);
   return true;
 }
 
@@ -284,6 +274,19 @@ void ArrayTexture::performLayout(NVGcontext* ctx) {
     center();
 }
 
+Vector2f ArrayTexture::tileSize() const noexcept
+{
+  const float w = tile_w / (float) mImageSize.x();
+  const float h = tile_h / (float) mImageSize.y();
+  return {w, h};
+}
+Vector2f ArrayTexture::tilePos(int x, int y) const noexcept
+{
+  const float dx = (borderPx + (tile_w + deltaX) * x) / (float) mImageSize.x();
+  const float dy = (borderPx + (tile_h + deltaY) * y) / (float) mImageSize.y();
+  return {dx, dy};
+}
+
 void ArrayTexture::draw(NVGcontext* ctx) {
     Widget::draw(ctx);
     nvgEndFrame(ctx); // Flush the NanoVG draw stack, not necessary to call nvgBeginFrame afterwards.
@@ -306,6 +309,39 @@ void ArrayTexture::draw(NVGcontext* ctx) {
     // render content
     if (m_on_content_render) m_on_content_render(scaleFactor, imagePosition);
 
+    // render tile counts
+    nvgFontSize(ctx, 24);
+    nvgFontFace(ctx, "sans");
+
+    for (int ty = 0; ty < tiles_y; ty++)
+    for (int tx = 0; tx < tiles_x; tx++)
+    {
+      const int count = m_tile_counts.at(tx + ty * tiles_x);
+      if (count == 0) continue;
+
+      const auto text = std::to_string(count);
+
+      const auto scale = scaledImageSize();
+      float x = position().x() + (tilePos(tx, ty).x() + tileSize().x()) * scale.x();
+      float y = position().y() + (tilePos(tx, ty).y() + tileSize().y()) * scale.y();
+      float bounds[4];
+      nvgTextBounds(ctx, x, y, text.c_str(), NULL, bounds);
+      float w = bounds[2]-bounds[0] + 4;
+      float h = bounds[3]-bounds[1] + 4;
+      float bx = x - w + 2;
+      float by = y - h + 2;
+
+      NVGpaint paint = nvgBoxGradient(
+               ctx, bx + 1, by + 1, w-2, h, 3, 4, Color(0, 255), Color(64, 255));
+      nvgBeginPath(ctx);
+      nvgRoundedRect(ctx, bx, by, w, h, 3);
+      nvgFillPaint(ctx, paint);
+      nvgFill(ctx);
+
+      nvgFillColor(ctx, Color(255, 255, 255, 255));
+      nvgTextAlign(ctx, NVG_ALIGN_RIGHT | NVG_ALIGN_BOTTOM);
+      nvgText(ctx, x, y, text.c_str(), nullptr);
+    }
     glDisable(GL_SCISSOR_TEST);
 
     if (helpersVisible())
