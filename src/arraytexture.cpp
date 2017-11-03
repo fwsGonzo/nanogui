@@ -128,13 +128,14 @@ bool ArrayTexture::mouseDragEvent(const Vector2i& p, const Vector2i& rel, int bu
     }
     return false;
 }
-bool ArrayTexture::mouseMotionEvent(const Vector2i& p, const Vector2i&, int btn, int mod)
+
+Vector2i ArrayTexture::calculateTileCoords(const Vector2i& p)
 {
   const Vector2f img = imageCoordinateAt(p.cast<float>());
   const float x = img.x() - mPos.x() / mScale;
   const float y = img.y() - mPos.y() / mScale;
   /*
-  printf("Mouse motion: %d / %d, %d / %d: (%d, %d), (%d, %d)\n",
+  printf("Tile coords: %d / %d, %d / %d: (%d, %d), (%d, %d)\n",
           x, mImageSize.x(),  y, mImageSize.y(),
           x >= borderPx, x < mImageSize.x() - borderPx,
           y >= borderPx, y < mImageSize.y() - borderPx);
@@ -152,11 +153,22 @@ bool ArrayTexture::mouseMotionEvent(const Vector2i& p, const Vector2i&, int btn,
     const int dy = inY - ty * (tile_h + deltaY);
     if (dx < tile_w && dy < tile_h)
     {
-      if (m_on_tile) m_on_tile(btn, mod, tx, ty);
-      return true;
+      return {tx, ty};
     }
   }
-  if (m_on_tile) m_on_tile(btn, mod, -1, 0);
+  return {-1, 0};
+}
+
+bool ArrayTexture::mouseButtonEvent(const Vector2i &p, int btn, bool down, int mod)
+{
+  auto coords = calculateTileCoords(p);
+  if (m_on_tile_click) m_on_tile_click(down, btn, mod, coords.x(), coords.y());
+  return true;
+}
+bool ArrayTexture::mouseMotionEvent(const Vector2i& p, const Vector2i&, int btn, int mod)
+{
+  auto coords = calculateTileCoords(p);
+  if (m_on_tile) m_on_tile(btn, mod, coords.x(), coords.y());
   return true;
 }
 
@@ -310,7 +322,7 @@ void ArrayTexture::draw(NVGcontext* ctx) {
     if (m_on_content_render) m_on_content_render(scaleFactor, imagePosition);
 
     // render tile counts
-    nvgFontSize(ctx, 24);
+    nvgFontSize(ctx, 26);
     nvgFontFace(ctx, "sans");
 
     for (int ty = 0; ty < tiles_y; ty++)

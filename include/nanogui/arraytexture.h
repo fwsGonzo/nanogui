@@ -45,6 +45,11 @@ public:
       m_on_tile = std::move(callback);
     }
 
+    typedef std::function<void(bool down, int btn, int mod, int tx, int ty)> on_tile_click_t;
+    void onTileClicked(on_tile_click_t&& callback) {
+      m_on_tile_click = std::move(callback);
+    }
+
     typedef std::function<void(Vector2f scale, Vector2f offset)> on_content_render_t;
     void onContentRender(on_content_render_t&& callback) {
       m_on_content_render = std::move(callback);
@@ -133,6 +138,7 @@ public:
     bool keyboardEvent(int key, int scancode, int action, int modifiers) override;
     bool keyboardCharacterEvent(unsigned int codepoint) override;
     bool mouseDragEvent(const Vector2i &p, const Vector2i &rel, int btn, int mod) override;
+    bool mouseButtonEvent(const Vector2i &p, int button, bool down, int modifiers) override;
     bool mouseMotionEvent(const Vector2i& p, const Vector2i& rel, int btn, int mod) override;
     bool scrollEvent(const Vector2i &p, const Vector2f &rel) override;
 
@@ -161,12 +167,14 @@ private:
 
     // Image parameters.
     Vector2i mImageSize;
+    Vector2i calculateTileCoords(const Vector2i&);
 
     const int tile_w;
     const int tile_h;
     const int tiles_x;
     const int tiles_y;
     on_tile_motion_t m_on_tile = nullptr;
+    on_tile_click_t  m_on_tile_click = nullptr;
     on_content_render_t m_on_content_render = nullptr;
     std::vector<int> m_tile_counts;
 
