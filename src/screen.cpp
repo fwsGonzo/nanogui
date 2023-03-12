@@ -115,12 +115,12 @@ Screen::Screen()
       m_stencil_buffer(false), m_float_buffer(false), m_redraw(false) {
     memset(m_cursors, 0, sizeof(GLFWcursor *) * (size_t) Cursor::CursorCount);
 #if defined(NANOGUI_USE_OPENGL)
-    GLint n_stencil_bits = 0, n_depth_bits = 0;
+    GLint n_stencil_bits = 8, n_depth_bits = 24;
     GLboolean float_mode;
-    CHK(glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
-        GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &n_depth_bits));
-    CHK(glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
-        GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &n_stencil_bits));
+    //CHK(glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+    //    GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &n_depth_bits));
+    //CHK(glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
+    //    GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &n_stencil_bits));
     CHK(glGetBooleanv(GL_RGBA_FLOAT_MODE, &float_mode));
     m_depth_buffer = n_depth_bits > 0;
     m_stencil_buffer = n_stencil_bits > 0;
