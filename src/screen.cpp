@@ -121,10 +121,10 @@ Screen::Screen()
     //    GL_DEPTH, GL_FRAMEBUFFER_ATTACHMENT_DEPTH_SIZE, &n_depth_bits));
     //CHK(glGetFramebufferAttachmentParameteriv(GL_DRAW_FRAMEBUFFER,
     //    GL_STENCIL, GL_FRAMEBUFFER_ATTACHMENT_STENCIL_SIZE, &n_stencil_bits));
-    CHK(glGetBooleanv(GL_RGBA_FLOAT_MODE, &float_mode));
+    //CHK(glGetBooleanv(GL_RGBA_FLOAT_MODE, &float_mode));
     m_depth_buffer = n_depth_bits > 0;
     m_stencil_buffer = n_stencil_bits > 0;
-    m_float_buffer = (bool) float_mode;
+    m_float_buffer = false;
 #endif
 }
 
