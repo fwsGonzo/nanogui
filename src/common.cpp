@@ -130,7 +130,10 @@ void mainloop(float refresh) {
 
         #if !defined(EMSCRIPTEN)
             /* Wait for mouse/keyboard or empty refresh events */
-            glfwWaitEvents();
+            // Use Timeout variant of wait for events; https://github.com/glfw/glfw/commit/cd22e2849512a88d0ab77bc7a3458646625f2c50
+            // shows that there are race conditions on Linux with it. I will get rid of this patch once I update to a more
+            // recent version of glfw.
+            glfwWaitEventsTimeout(0.1);
         #endif
     };
 
