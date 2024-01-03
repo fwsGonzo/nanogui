@@ -140,7 +140,10 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
             y_pos = m_pos.y(),
             width = m_tab_offsets[i + 1] - m_tab_offsets[i];
 
+        NVGcolor textColor;
         if (i == (size_t) m_active_tab) {
+            // Active tab uses default text color
+            textColor = m_theme->m_text_color;
             nvgBeginPath(ctx);
             nvgRoundedRect(ctx, x_pos + 0.5f, y_pos + 1.5f, width,
                            tab_height + 4, m_theme->m_button_corner_radius);
@@ -153,6 +156,8 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
             nvgStrokeColor(ctx, m_theme->m_border_dark);
             nvgStroke(ctx);
         } else {
+            // Inactive tab uses disabled text color
+            textColor = m_theme->m_disabled_text_color;
             nvgBeginPath(ctx);
             nvgRoundedRect(ctx, x_pos + 0.5f, y_pos + 1.5f, width,
                            tab_height + 4, m_theme->m_button_corner_radius);
@@ -165,7 +170,7 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
         }
         x_pos += m_theme->m_tab_button_horizontal_padding;
         y_pos += m_theme->m_tab_button_vertical_padding + 1;
-        nvgFillColor(ctx, m_theme->m_text_color);
+        nvgFillColor(ctx, textColor);
         nvgFontFace(ctx, m_font.c_str());
 
         nvgText(ctx, x_pos, y_pos, m_tab_captions[i].c_str(), nullptr);
