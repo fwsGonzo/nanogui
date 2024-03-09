@@ -421,6 +421,8 @@ int TabWidget::insert_tab(int index, const std::string &caption, Widget *widget)
 }
 
 int TabWidget::append_tab(const std::string &caption, Widget *widget) {
+    if (widget == this)
+        throw std::runtime_error("TabWidget::append_tab(): cannot append the TabWidget to itself!");
     widget->set_visible(false);
     int id = TabWidgetBase::append_tab(caption);
     m_widgets[id] = widget;
