@@ -36,8 +36,9 @@ void TabWidgetBase::remove_tab(int id) {
     TabWidgetBase::perform_layout(screen()->nvg_context());
     if (m_close_callback)
         m_close_callback(id);
-    if (close_active && m_callback) {
-        m_callback(selected_id());
+    if (close_active) {
+        if (m_callback)
+            m_callback(selected_id());
         update_visibility();
     }
 }
@@ -49,9 +50,10 @@ int TabWidgetBase::insert_tab(int index, const std::string &caption) {
     TabWidgetBase::perform_layout(screen()->nvg_context());
     if (index < m_active_tab)
         m_active_tab++;
-    if (m_tab_ids.size() == 1 && m_callback) {
+    if (m_tab_ids.size() == 1) {
         m_active_tab = 0;
-        m_callback(id);
+        if (m_callback)
+            m_callback(id);
         update_visibility();
     }
     return id;
@@ -304,8 +306,9 @@ bool TabWidgetBase::mouse_button_event(const Vector2i &p, int button, bool down,
                     m_tab_drag_min = m_tab_offsets[index];
                     m_tab_drag_max = m_tab_offsets[index + 1];
                     m_close_index_pushed = -1;
-                    if (tab_changed && m_callback) {
-                        m_callback(selected_id());
+                    if (tab_changed) {
+                        if (m_callback)
+                            m_callback(selected_id());
                         update_visibility();
                     }
                 } else if (m_tab_drag_index != -1) {
