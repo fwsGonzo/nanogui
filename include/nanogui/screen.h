@@ -113,6 +113,10 @@ public:
     /// Send an event that will cause the screen to be redrawn at the next event loop iteration
     void redraw();
 
+	/// Return whether or not the screen needs to be redrawn
+	bool needs_redraw() const { return m_redraw; }
+	void set_needs_redraw(bool value) { m_redraw = value; }
+
     /**
      * \brief Redraw the screen if the redraw flag is set
      *
