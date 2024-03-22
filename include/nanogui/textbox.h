@@ -42,6 +42,13 @@ public:
 
     TextBox(Widget *parent, const std::string &value = "Untitled");
 
+    /// Get the text color (either specified or from the theme)
+    Color text_color() const;
+    /// Set the text color
+    void set_text_color(const Color& color) { m_text_color = color; }
+	/// Check if the text color is being used, otherwise theme default is used
+	bool has_text_color() const { return m_text_color.a() > 0.0f; }
+
     bool editable() const { return m_editable; }
     void set_editable(bool editable);
 
@@ -113,13 +120,14 @@ protected:
     bool m_editable;
     bool m_spinnable;
     bool m_committed;
+	Color m_text_color {1.0f, 1.0f, 1.0f, 0.0f};
     std::string m_value;
     std::string m_default_value;
     Alignment m_alignment;
     std::string m_units;
     std::string m_format;
-    int m_units_image;
     std::function<bool(const std::string& str)> m_callback;
+    int m_units_image;
     bool m_valid_format;
     std::string m_value_temp;
     std::string m_placeholder;

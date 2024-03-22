@@ -57,6 +57,9 @@ void TextBox::set_theme(Theme *theme) {
     if (m_theme)
         m_font_size = m_theme->m_text_box_font_size;
 }
+Color TextBox::text_color() const {
+	return (has_text_color()) ? m_text_color : m_theme->m_text_color;
+}
 
 Vector2i TextBox::preferred_size(NVGcontext *ctx) const {
     Vector2i size(0, font_size() * 1.4f);
@@ -194,9 +197,9 @@ void TextBox::draw(NVGcontext* ctx) {
     }
 
     nvgFontSize(ctx, font_size());
-    nvgFillColor(ctx, m_enabled && (!m_committed || !m_value.empty()) ?
-        m_theme->m_text_color :
-        m_theme->m_disabled_text_color);
+	const bool enabled = m_enabled && (!m_committed || !m_value.empty());
+	const auto& color = enabled ? this->text_color() : m_theme->m_disabled_text_color;
+    nvgFillColor(ctx, color);
 
     // clip visible text area
     float clip_x = m_pos.x() + x_spacing + spin_arrows_width - 1.0f;
