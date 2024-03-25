@@ -50,6 +50,10 @@ void TextArea::append(const std::string &text) {
         }
     } while (*str++ != 0);
 
+	// Update the maximum size one more time to ensure that the last line is taken into account
+	m_offset = Vector2i(0, m_offset.y() + font_size());
+	m_max_size = max(m_max_size, m_offset);
+
     VScrollPanel *vscroll = dynamic_cast<VScrollPanel *>(m_parent);
     if (vscroll)
         vscroll->perform_layout(ctx);
