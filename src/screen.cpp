@@ -763,7 +763,7 @@ void Screen::cursor_pos_callback_event(double x, double y) {
     }
 }
 
-void Screen::mouse_button_callback_event(int button, int action, int modifiers) {
+bool Screen::mouse_button_callback_event(int button, int action, int modifiers) {
     m_modifiers = modifiers;
     m_last_interaction = glfwGetTime();
 
@@ -778,7 +778,7 @@ void Screen::mouse_button_callback_event(int button, int action, int modifiers) 
                 dynamic_cast<Window *>(m_focus_path[m_focus_path.size() - 1]);
             if (window && window->modal()) {
                 if (!window->contains(m_mouse_pos))
-                    return;
+                    return false;
             }
         }
 
@@ -816,9 +816,15 @@ void Screen::mouse_button_callback_event(int button, int action, int modifiers) 
 
         m_redraw |= mouse_button_event(m_mouse_pos, button,
                                        action == GLFW_PRESS, m_modifiers);
+
+		// Return true if any widget handled the event
+		return (drop_widget != nullptr && drop_widget != this);
+
     } catch (const std::exception &e) {
         std::cerr << "Caught exception in event handler: " << e.what() << std::endl;
     }
+
+	return false;
 }
 
 void Screen::key_callback_event(int key, int scancode, int action, int mods) {
