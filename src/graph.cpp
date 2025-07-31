@@ -41,7 +41,7 @@ void Graph::draw(NVGcontext *ctx) {
     nvgBeginPath(ctx);
     nvgMoveTo(ctx, m_pos.x(), m_pos.y()+m_size.y());
     for (size_t i = 0; i < (size_t) m_values.size(); i++) {
-        float value = m_values[i];
+        const float value = m_values[(m_current_index + i) % m_values.size()];
         float vx = m_pos.x() + i * m_size.x() / (float) (m_values.size() - 1);
         float vy = m_pos.y() + (1-value) * m_size.y();
         nvgLineTo(ctx, vx, vy);
