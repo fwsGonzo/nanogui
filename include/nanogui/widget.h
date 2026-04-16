@@ -186,6 +186,11 @@ public:
     /// Request the focus to be moved to this widget
     void request_focus();
 
+    /// Return whether this widget can receive focus when clicked
+    bool focusable() const { return m_focusable; }
+    /// Set whether this widget can receive focus when clicked
+    void set_focusable(bool focusable) { m_focusable = focusable; }
+
     const std::string &tooltip() const { return m_tooltip; }
     void set_tooltip(const std::string &tooltip) { m_tooltip = tooltip; }
 
@@ -291,6 +296,7 @@ protected:
      */
     bool m_enabled;
     bool m_focused, m_mouse_focus;
+    bool m_focusable = true;
     std::string m_tooltip;
     int m_font_size;
 

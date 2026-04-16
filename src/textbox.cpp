@@ -377,7 +377,8 @@ bool TextBox::focus_event(bool focused) {
         if (focused) {
             m_value_temp = m_value;
             m_committed = false;
-            m_cursor_pos = 0;
+            m_cursor_pos = (int) m_value_temp.size();
+            m_selection_pos = 0;
         } else {
             if (m_valid_format) {
                 if (m_value_temp == "")
