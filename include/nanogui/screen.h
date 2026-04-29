@@ -164,6 +164,9 @@ public:
     /// Return the ratio between pixel and device coordinates (e.g. >= 2 on Mac Retina displays)
     float pixel_ratio() const { return m_pixel_ratio; }
 
+    /// Override the pixel ratio (for custom UI scaling)
+    void set_pixel_ratio(float ratio) { m_pixel_ratio = ratio; }
+
     /// Handle a file drop event
     virtual bool drop_event(const std::vector<std::string> & /* filenames */) {
         return false; /* To be overridden */
