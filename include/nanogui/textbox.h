@@ -172,6 +172,10 @@ public:
         TextBox::set_value(std::to_string(clamped_value));
     }
 
+    void set_preformatted_value(const std::string& value) {
+        TextBox::set_value(value);
+    }
+
     void set_callback(const std::function<void(Scalar)> &cb) {
         TextBox::set_callback(
             [cb, this](const std::string &str) {
