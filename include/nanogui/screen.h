@@ -278,6 +278,11 @@ public:
     void center_window(Window *window);
     void move_window_to_front(Window *window);
     void draw_widgets();
+    void clear_interaction_state() {
+        update_focus(nullptr);
+        m_drag_widget = nullptr;
+        m_drag_active = false;
+    }
 
 protected:
     GLFWwindow *m_glfw_window = nullptr;
