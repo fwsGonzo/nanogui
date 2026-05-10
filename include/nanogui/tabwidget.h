@@ -57,7 +57,13 @@ public:
     /// Return the index of the currently active tab
     int selected_index() const { return m_active_tab; }
     /// Set the index of the currently active tab
-    void set_selected_index(int index) { m_active_tab = index; update_visibility(); }
+    void set_selected_index(int index) {
+        bool changed = m_active_tab != index;
+        m_active_tab = index;
+        if (changed && m_callback)
+            m_callback(selected_id());
+        update_visibility();
+    }
 
     /// Return the caption of the tab with the given ID
     const std::string& tab_caption(int id) const { return m_tab_captions[tab_index(id)]; };
