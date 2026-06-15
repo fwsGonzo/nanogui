@@ -66,9 +66,10 @@ if (CMAKE_CXX_COMPILER MATCHES "/em\\+\\+(-[a-zA-Z0-9.])?$")
   set(NANOGUI_BUILD_GLAD_DEFAULT   OFF)
   set(NANOGUI_BUILD_GLFW_DEFAULT   OFF)
 
-  set(CMAKE_STATIC_LIBRARY_SUFFIX ".bc")
-  set(CMAKE_EXECUTABLE_SUFFIX ".bc")
-  set(CMAKE_CXX_CREATE_STATIC_LIBRARY "<CMAKE_CXX_COMPILER> -o <TARGET> <LINK_FLAGS> <OBJECTS>")
+  # NOTE: the old ".bc" static-library hack (em++ -o libnanogui.bc) only worked
+  # on legacy Emscripten where -o *.bc emitted LLVM bitcode. Modern emcc treats
+  # -o *.bc as a final program link (emitting JS+wasm), which can't be linked
+  # into the cppcraft executable. Use the default static archive (emar → .a).
   if (U_CMAKE_BUILD_TYPE MATCHES REL)
     add_compile_options(-O3 -DNDEBUG)
   endif()

@@ -46,6 +46,8 @@
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
 #  if defined(NANOGUI_USE_OPENGL)
 #    define NANOVG_GL3_IMPLEMENTATION
+#  elif defined(NANOGUI_USE_GLES) && NANOGUI_GLES_VERSION == 3
+#    define NANOVG_GLES3_IMPLEMENTATION
 #  elif defined(NANOGUI_USE_GLES)
 #    define NANOVG_GLES2_IMPLEMENTATION
 #  endif
@@ -455,6 +457,8 @@ void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
 
 #if defined(NANOGUI_USE_OPENGL)
     m_nvg_context = nvgCreateGL3(flags);
+#elif defined(NANOGUI_USE_GLES) && NANOGUI_GLES_VERSION == 3
+    m_nvg_context = nvgCreateGLES3(flags);
 #elif defined(NANOGUI_USE_GLES)
     m_nvg_context = nvgCreateGLES2(flags);
 #elif defined(NANOGUI_USE_METAL)
@@ -497,6 +501,8 @@ Screen::~Screen() {
     if (m_nvg_context) {
 #if defined(NANOGUI_USE_OPENGL)
         nvgDeleteGL3(m_nvg_context);
+#elif defined(NANOGUI_USE_GLES) && NANOGUI_GLES_VERSION == 3
+        nvgDeleteGLES3(m_nvg_context);
 #elif defined(NANOGUI_USE_GLES)
         nvgDeleteGLES2(m_nvg_context);
 #elif defined(NANOGUI_USE_METAL)
