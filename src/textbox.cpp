@@ -213,20 +213,28 @@ void TextBox::draw(NVGcontext* ctx) {
     Vector2i old_draw_pos(draw_pos);
     draw_pos.x() += m_text_offset;
 
+    // Password masking: render a run of the mask character (one per byte) so glyph
+    // counts — and therefore cursor/offset math below — stay identical to the real
+    // string. value() still returns the real text. 0 = no masking (plaintext).
+    const std::string masked_value =
+        m_password_character ? std::string(m_value.size(), m_password_character) : m_value;
+    const std::string masked_temp =
+        m_password_character ? std::string(m_value_temp.size(), m_password_character) : m_value_temp;
+
     if (m_committed) {
-        nvgText(ctx, draw_pos.x(), draw_pos.y(), m_value.empty() ? m_placeholder.c_str() : m_value.c_str(), nullptr);
+        nvgText(ctx, draw_pos.x(), draw_pos.y(), masked_value.empty() ? m_placeholder.c_str() : masked_value.c_str(), nullptr);
     } else {
         const int max_glyphs = 1024;
         NVGglyphPosition glyphs[max_glyphs];
         float text_bound[4];
-        nvgTextBounds(ctx, draw_pos.x(), draw_pos.y(), m_value_temp.c_str(),
+        nvgTextBounds(ctx, draw_pos.x(), draw_pos.y(), masked_temp.c_str(),
                       nullptr, text_bound);
         float lineh = text_bound[3] - text_bound[1];
 
         // find cursor positions
         int nglyphs =
             nvgTextGlyphPositions(ctx, draw_pos.x(), draw_pos.y(),
-                                  m_value_temp.c_str(), nullptr, glyphs, max_glyphs);
+                                  masked_temp.c_str(), nullptr, glyphs, max_glyphs);
         update_cursor(ctx, text_bound[2], glyphs, nglyphs);
 
         // compute text offset
@@ -243,13 +251,13 @@ void TextBox::draw(NVGcontext* ctx) {
         draw_pos.x() = old_draw_pos.x() + m_text_offset;
 
         // draw text with offset
-        nvgText(ctx, draw_pos.x(), draw_pos.y(), m_value_temp.c_str(), nullptr);
-        nvgTextBounds(ctx, draw_pos.x(), draw_pos.y(), m_value_temp.c_str(),
+        nvgText(ctx, draw_pos.x(), draw_pos.y(), masked_temp.c_str(), nullptr);
+        nvgTextBounds(ctx, draw_pos.x(), draw_pos.y(), masked_temp.c_str(),
                       nullptr, text_bound);
 
         // recompute cursor positions
         nglyphs = nvgTextGlyphPositions(ctx, draw_pos.x(), draw_pos.y(),
-                m_value_temp.c_str(), nullptr, glyphs, max_glyphs);
+                masked_temp.c_str(), nullptr, glyphs, max_glyphs);
 
         if (m_cursor_pos > -1) {
             if (m_selection_pos > -1) {

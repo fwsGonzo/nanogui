@@ -58,6 +58,12 @@ public:
     const std::string &value() const { return m_value; }
     void set_value(const std::string &value) { m_value = value; }
 
+    /// Password masking: when set to a non-zero character, the displayed text (both
+    /// committed and while editing) is rendered as a run of that character, one per
+    /// byte, while value() still returns the real text. 0 (default) = no masking.
+    char password_character() const { return m_password_character; }
+    void set_password_character(char c) { m_password_character = c; }
+
     const std::string &default_value() const { return m_default_value; }
     void set_default_value(const std::string &default_value) { m_default_value = default_value; }
 
@@ -120,6 +126,7 @@ protected:
     bool m_editable;
     bool m_spinnable;
     bool m_committed;
+    char m_password_character = 0;   // 0 = show plaintext; else mask byte-for-byte
 	Color m_text_color {1.0f, 1.0f, 1.0f, 0.0f};
     std::string m_value;
     std::string m_default_value;
