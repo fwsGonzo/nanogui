@@ -25,6 +25,7 @@ NAMESPACE_BEGIN(nanogui)
 TextBox::TextBox(Widget *parent, const std::string &value)
     : Widget(parent),
       m_editable(false),
+      m_read_only(false),
       m_spinnable(false),
       m_committed(true),
       m_value(value),
@@ -49,7 +50,13 @@ TextBox::TextBox(Widget *parent, const std::string &value)
 
 void TextBox::set_editable(bool editable) {
     m_editable = editable;
-    set_cursor(editable ? Cursor::IBeam : Cursor::Arrow);
+    set_cursor(interactive() ? Cursor::IBeam : Cursor::Arrow);
+}
+
+void TextBox::set_read_only(bool read_only) {
+    m_read_only = read_only;
+    // Read-only text is still selectable, so show the I-beam for it too.
+    set_cursor(interactive() ? Cursor::IBeam : Cursor::Arrow);
 }
 
 void TextBox::set_theme(Theme *theme) {
@@ -304,7 +311,7 @@ bool TextBox::mouse_button_event(const Vector2i &p, int button, bool down,
             request_focus();
     }
 
-    if (m_editable && focused()) {
+    if (interactive() && focused()) {
         if (down) {
             m_mouse_down_pos = p;
             m_mouse_down_modifier = modifiers;
@@ -356,14 +363,14 @@ bool TextBox::mouse_motion_event(const Vector2i &p, const Vector2i & /* rel */,
                                  int /* button */, int /* modifiers */) {
     m_mouse_pos = p;
 
-    if (!m_editable)
+    if (!interactive())
         set_cursor(Cursor::Arrow);
     else if (m_spinnable && !focused() && spin_area(m_mouse_pos) != SpinArea::None) /* scrolling arrows */
         set_cursor(Cursor::Hand);
     else
         set_cursor(Cursor::IBeam);
 
-    return m_editable;
+    return interactive();
 }
 
 bool TextBox::mouse_drag_event(const Vector2i &p, const Vector2i &/* rel */,
@@ -371,7 +378,7 @@ bool TextBox::mouse_drag_event(const Vector2i &p, const Vector2i &/* rel */,
     m_mouse_pos = p;
     m_mouse_drag_pos = p;
 
-    if (m_editable && focused())
+    if (interactive() && focused())
         return true;
     return false;
 }
@@ -381,38 +388,42 @@ bool TextBox::focus_event(bool focused) {
 
     std::string backup = m_value;
 
-    if (m_editable) {
+    if (interactive()) {
         if (focused) {
             m_value_temp = m_value;
             m_committed = false;
             m_cursor_pos = (int) m_value_temp.size();
             m_selection_pos = 0;
         } else {
-            if (m_valid_format) {
-                if (m_value_temp == "")
-                    m_value = m_default_value;
-                else
-                    m_value = m_value_temp;
+            // Read-only never mutates the value; only editable commits/validates.
+            if (m_editable) {
+                if (m_valid_format) {
+                    if (m_value_temp == "")
+                        m_value = m_default_value;
+                    else
+                        m_value = m_value_temp;
+                }
+
+                if (m_callback && !m_callback(m_value))
+                    m_value = backup;
+
+                m_valid_format = true;
             }
-
-            if (m_callback && !m_callback(m_value))
-                m_value = backup;
-
-            m_valid_format = true;
             m_committed = true;
             m_cursor_pos = -1;
             m_selection_pos = -1;
             m_text_offset = 0;
         }
 
-        m_valid_format = (m_value_temp == "") || check_format(m_value_temp, m_format);
+        if (m_editable)
+            m_valid_format = (m_value_temp == "") || check_format(m_value_temp, m_format);
     }
 
     return true;
 }
 
 bool TextBox::keyboard_event(int key, int /* scancode */, int action, int modifiers) {
-    if (m_editable && focused()) {
+    if (interactive() && focused()) {
         if (action == GLFW_PRESS || action == GLFW_REPEAT) {
             if (key == GLFW_KEY_LEFT) {
                 if (modifiers == GLFW_MOD_SHIFT) {
@@ -453,35 +464,40 @@ bool TextBox::keyboard_event(int key, int /* scancode */, int action, int modifi
 
                 m_cursor_pos = (int) m_value_temp.size();
             } else if (key == GLFW_KEY_BACKSPACE) {
-                if (!delete_selection()) {
+                if (m_editable && !delete_selection()) {
                     if (m_cursor_pos > 0) {
                         m_value_temp.erase(m_value_temp.begin() + m_cursor_pos - 1);
                         m_cursor_pos--;
                     }
                 }
             } else if (key == GLFW_KEY_DELETE) {
-                if (!delete_selection()) {
+                if (m_editable && !delete_selection()) {
                     if (m_cursor_pos < (int) m_value_temp.length())
                         m_value_temp.erase(m_value_temp.begin() + m_cursor_pos);
                 }
             } else if (key == GLFW_KEY_ENTER) {
-                if (!m_committed)
+                if (m_editable && !m_committed)
                     focus_event(false);
             } else if (key == GLFW_KEY_A && modifiers == SYSTEM_COMMAND_MOD) {
                 m_cursor_pos = (int) m_value_temp.length();
                 m_selection_pos = 0;
             } else if (key == GLFW_KEY_X && modifiers == SYSTEM_COMMAND_MOD) {
-                copy_selection();
-                delete_selection();
+                if (m_editable) {
+                    copy_selection();
+                    delete_selection();
+                }
             } else if (key == GLFW_KEY_C && modifiers == SYSTEM_COMMAND_MOD) {
                 copy_selection();
             } else if (key == GLFW_KEY_V && modifiers == SYSTEM_COMMAND_MOD) {
-                delete_selection();
-                paste_from_clipboard();
+                if (m_editable) {
+                    delete_selection();
+                    paste_from_clipboard();
+                }
             }
 
-            m_valid_format =
-                (m_value_temp == "") || check_format(m_value_temp, m_format);
+            if (m_editable)
+                m_valid_format =
+                    (m_value_temp == "") || check_format(m_value_temp, m_format);
         }
 
         return true;

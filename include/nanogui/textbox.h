@@ -52,6 +52,13 @@ public:
     bool editable() const { return m_editable; }
     void set_editable(bool editable);
 
+    /// Read-only: the box gains focus, selection and copy (mouse-drag, double-click,
+    /// Ctrl+A, Ctrl+C) exactly like an editable box, but every mutation — typing,
+    /// paste, backspace/delete, cut — is rejected and the value cannot change.
+    /// Distinct from a non-editable box, which cannot be selected or copied at all.
+    bool read_only() const { return m_read_only; }
+    void set_read_only(bool read_only);
+
     bool spinnable() const { return m_spinnable; }
     void set_spinnable(bool spinnable) { m_spinnable = spinnable; }
 
@@ -106,6 +113,10 @@ public:
     virtual Vector2i preferred_size(NVGcontext *ctx) const override;
     virtual void draw(NVGcontext* ctx) override;
 protected:
+    /// True when the box participates in focus/selection/copy — i.e. it is either
+    /// editable or read-only. Mutation still requires m_editable specifically.
+    bool interactive() const { return m_editable || m_read_only; }
+
     bool check_format(const std::string &input, const std::string &format);
     bool copy_selection();
     void paste_from_clipboard();
@@ -124,6 +135,7 @@ protected:
 
 protected:
     bool m_editable;
+    bool m_read_only;
     bool m_spinnable;
     bool m_committed;
     char m_password_character = 0;   // 0 = show plaintext; else mask byte-for-byte
