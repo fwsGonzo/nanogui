@@ -381,7 +381,9 @@ if (APPLE AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-fobjc-arc)
 endif()
 
-if (NANOGUI_BUILD_GLFW)
+if (NANOGUI_BUILD_GLFW AND TARGET glfw_objects)
+  # GLFW <= 3.4 exposed an object library that got merged in here. GLFW 3.5
+  # folded it into the `glfw` target, which is linked below instead.
   list(APPEND NANOGUI_EXTRA $<TARGET_OBJECTS:glfw_objects>)
 endif()
 
@@ -488,6 +490,11 @@ endif()
 if (NANOGUI_BUILD_GLFW)
   target_include_directories(nanogui PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ext/glfw/include>)
+  # Where the objects were not merged above (GLFW 3.5+), the symbols have to
+  # come from the library itself.
+  if (NOT TARGET glfw_objects)
+    list(APPEND NANOGUI_LIBS glfw)
+  endif()
 endif()
 
 if (NANOGUI_BUILD_SHARED)
