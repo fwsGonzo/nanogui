@@ -152,6 +152,37 @@ public:
      */
     Color m_button_gradient_bot_pushed;
 
+    /* Check box colors */
+    /**
+     * The fill of an unchecked check box
+     * (default: intensity=``74``, alpha=``255``; see \ref nanogui::Color::Color(int,int)).
+     * Lighter than the window it sits on, so the box reads as a control rather
+     * than as a hole.
+     */
+    Color m_check_box_background;
+    /**
+     * The fill of a check box while the mouse button is held on it
+     * (default: intensity=``41``, alpha=``255``; see \ref nanogui::Color::Color(int,int)).
+     */
+    Color m_check_box_background_pushed;
+    /**
+     * The fill of a checked check box (default: ``(0, 122, 204, 255)``).
+     * Distinct in hue from \ref nanogui::Theme::m_check_box_background, so
+     * checked and unchecked differ by the whole box and not only by the mark.
+     */
+    Color m_check_box_background_checked;
+    /// The check box outline (default: \ref nanogui::Theme::m_border_light).
+    Color m_check_box_border;
+    /**
+     * The check box outline while the widget holds focus
+     * (default: intensity=``255``, alpha=``200``; see \ref nanogui::Color::Color(int,int)).
+     */
+    Color m_check_box_border_focused;
+    /// The color of the check mark itself (default: white).
+    Color m_check_box_check;
+    /// Width of the check box outline in pixels (default: ``1.5f``); doubled while focused.
+    float m_check_box_border_width;
+
     /* Window colors */
     /**
      * The fill color for a Window that is not in focus

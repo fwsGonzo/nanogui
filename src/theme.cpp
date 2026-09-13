@@ -53,6 +53,14 @@ Theme::Theme(NVGcontext *ctx) {
     m_button_gradient_top_pushed         = Color(41, 255);
     m_button_gradient_bot_pushed         = Color(29, 255);
 
+    m_check_box_background               = Color(74, 255);
+    m_check_box_background_pushed        = Color(41, 255);
+    m_check_box_background_checked       = Color(0, 122, 204, 255);
+    m_check_box_border                   = m_border_light;
+    m_check_box_border_focused           = Color(255, 200);
+    m_check_box_check                    = Color(255, 255);
+    m_check_box_border_width             = 1.5f;
+
     /* Window-related */
     m_window_fill_unfocused              = Color(43, 230);
     m_window_fill_focused                = Color(45, 230);
