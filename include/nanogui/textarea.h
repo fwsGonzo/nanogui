@@ -100,6 +100,9 @@ public:
     virtual bool keyboard_event(int key, int scancode, int action, int modifiers) override;
 
 protected:
+    void refresh_text_metrics(NVGcontext *ctx);
+    int m_measured_font_size = 0;
+    std::string m_measured_font;
     Vector2i position_to_block(const Vector2i &pos) const;
     Vector2i block_to_position(const Vector2i &pos) const;
 

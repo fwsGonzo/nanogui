@@ -28,7 +28,7 @@ Vector2i Window::preferred_size(NVGcontext *ctx) const {
     if (m_button_panel)
         m_button_panel->set_visible(true);
 
-    nvgFontSize(ctx, 18.0f);
+    nvgFontSize(ctx, std::min(18, m_theme->m_window_header_height - 2));
     nvgFontFace(ctx, "sans-bold");
     float bounds[4];
     nvgTextBounds(ctx, 0, 0, m_title.c_str(), nullptr, bounds);
@@ -48,17 +48,24 @@ Widget *Window::button_panel() {
 }
 
 void Window::perform_layout(NVGcontext *ctx) {
+    if (m_fit_to_viewport && m_theme->m_bounded_windows && screen()) {
+        set_bounded(true, m_title.empty() ? 0 : m_theme->m_window_header_height);
+        m_size = max(Vector2i(1), min(m_size, screen()->usable_size()));
+        m_pos = max(screen()->usable_origin(), min(m_pos, screen()->usable_origin() + screen()->usable_size() - m_size));
+        set_layout_width(m_size.x());
+    }
     if (!m_button_panel) {
         Widget::perform_layout(ctx);
     } else {
         m_button_panel->set_visible(false);
         Widget::perform_layout(ctx);
+        const int button_size = std::min(22, m_theme->m_window_header_height - 4);
         for (auto w : m_button_panel->children()) {
-            w->set_fixed_size(Vector2i(22, 22));
-            w->set_font_size(15);
+            w->set_fixed_size(Vector2i(button_size));
+            w->set_font_size(std::min(15, button_size));
         }
         m_button_panel->set_visible(true);
-        m_button_panel->set_size(Vector2i(width(), 22));
+        m_button_panel->set_size(Vector2i(width(), button_size));
         m_button_panel->set_position(Vector2i(
             width() - (m_button_panel->preferred_size(ctx).x() + 5), 3));
         m_button_panel->perform_layout(ctx);
@@ -126,7 +133,7 @@ void Window::draw(NVGcontext *ctx) {
         nvgStrokeColor(ctx, m_theme->m_window_header_sep_bot);
         nvgStroke(ctx);
 
-        nvgFontSize(ctx, 18.0f);
+        nvgFontSize(ctx, std::min(18, hh - 2));
         nvgFontFace(ctx, "sans-bold");
         nvgTextAlign(ctx, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 
@@ -144,6 +151,10 @@ void Window::draw(NVGcontext *ctx) {
 
     nvgRestore(ctx);
     Widget::draw(ctx);
+    if (m_bounded && m_button_panel && m_button_panel->visible()) {
+        nvgSave(ctx); nvgTranslate(ctx, m_pos.x(), m_pos.y());
+        m_button_panel->draw(ctx); nvgRestore(ctx);
+    }
 }
 
 void Window::dispose() {
@@ -165,18 +176,21 @@ bool Window::mouse_enter_event(const Vector2i &p, bool enter) {
     return true;
 }
 
-bool Window::mouse_drag_event(const Vector2i &, const Vector2i &rel,
-                            int button, int /* modifiers */) {
+bool Window::mouse_drag_event(const Vector2i &p, const Vector2i &rel,
+                            int button, int modifiers) {
     if (m_drag && (button & (1 << GLFW_MOUSE_BUTTON_1)) != 0) {
         m_pos += rel;
-        m_pos = max(m_pos, Vector2i(0));
-        m_pos = min(m_pos, parent()->size() - m_size);
+        const auto origin = m_fit_to_viewport && m_theme->m_bounded_windows ? screen()->usable_origin() : Vector2i(0);
+        const auto extent = m_fit_to_viewport && m_theme->m_bounded_windows ? screen()->usable_size() : parent()->size();
+        m_pos = max(origin, min(m_pos, origin + extent - m_size));
         return true;
     }
-    return false;
+    return Widget::mouse_drag_event(p, rel, button, modifiers);
 }
 
 bool Window::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
+    if (m_button_panel && m_button_panel->contains(p - m_pos) &&
+        m_button_panel->mouse_button_event(p - m_pos, button, down, modifiers)) return true;
     if (Widget::mouse_button_event(p, button, down, modifiers))
         return true;
     if (button == GLFW_MOUSE_BUTTON_1) {

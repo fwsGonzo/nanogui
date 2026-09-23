@@ -26,6 +26,9 @@ class NANOGUI_EXPORT Window : public Widget {
 public:
     Window(Widget *parent, const std::string &title = "Untitled");
 
+    void set_fit_to_viewport(bool value) { m_fit_to_viewport = value; }
+    bool fit_to_viewport() const { return m_fit_to_viewport; }
+
     /// Return the window title
     const std::string &title() const { return m_title; }
     /// Set the window title
@@ -67,6 +70,7 @@ protected:
     Widget *m_button_panel;
     bool m_modal;
     bool m_drag;
+    bool m_fit_to_viewport = true;
 };
 
 NAMESPACE_END(nanogui)

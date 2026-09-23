@@ -24,6 +24,7 @@ Button::Button(Widget *parent, const std::string &caption, int icon)
 
 Vector2i Button::preferred_size(NVGcontext *ctx) const {
     int font_size = m_font_size == -1 ? m_theme->m_button_font_size : m_font_size;
+    if (m_theme->m_text_scale != 1.f) font_size = std::max(11, int(std::lround(font_size * m_theme->m_text_scale)));
     nvgFontSize(ctx, font_size);
     nvgFontFace(ctx, "sans-bold");
     float tw = nvgTextBounds(ctx, 0,0, m_caption.c_str(), nullptr, nullptr);
@@ -43,7 +44,7 @@ Vector2i Button::preferred_size(NVGcontext *ctx) const {
             iw = w * ih / h;
         }
     }
-    return Vector2i((int)(tw + iw) + 20, font_size + 10);
+    return Vector2i((int)(tw + iw) + int(std::lround(20 * m_theme->m_margin_scale)), font_size + int(std::lround(10 * m_theme->m_margin_scale)));
 }
 
 bool Button::mouse_enter_event(const Vector2i &p, bool enter) {
@@ -162,6 +163,7 @@ void Button::draw(NVGcontext *ctx) {
     nvgStroke(ctx);
 
     int font_size = m_font_size == -1 ? m_theme->m_button_font_size : m_font_size;
+    if (m_theme->m_text_scale != 1.f) font_size = std::max(11, int(std::lround(font_size * m_theme->m_text_scale)));
     nvgFontSize(ctx, font_size);
     nvgFontFace(ctx, "sans-bold");
     float tw = nvgTextBounds(ctx, 0,0, m_caption.c_str(), nullptr, nullptr);

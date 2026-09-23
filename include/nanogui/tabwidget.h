@@ -55,9 +55,11 @@ public:
     void set_selected_id(int id) { m_active_tab = tab_index(id); update_visibility(); }
 
     /// Return the index of the currently active tab
+    bool scroll_event(const Vector2i &p, const Vector2f &rel) override;
     int selected_index() const { return m_active_tab; }
     /// Set the index of the currently active tab
     void set_selected_index(int index) {
+        if (index < 0 || index >= tab_count()) return;
         bool changed = m_active_tab != index;
         m_active_tab = index;
         if (changed && m_callback)
@@ -126,6 +128,8 @@ protected:
     std::string m_font;
     std::vector<std::string> m_tab_captions;
     std::vector<int> m_tab_ids;
+    int m_tab_scroll = 0;
+    void reveal_selected_tab();
     std::vector<int> m_tab_offsets;
     int m_close_width = 0;
     int m_active_tab = 0;

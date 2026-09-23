@@ -23,8 +23,31 @@ TextArea::TextArea(Widget *parent) : Widget(parent),
   m_max_size(0), m_padding(0), m_selectable(true),
   m_selection_start(-1), m_selection_end(-1) { }
 
+void TextArea::refresh_text_metrics(NVGcontext *ctx) {
+    const int size = font_size();
+    if (m_measured_font_size == size && m_measured_font == m_font) return;
+    if (m_measured_font_size > 0) {
+        nvgFontSize(ctx, size);
+        nvgFontFace(ctx, m_font.c_str());
+        m_max_size = Vector2i(0, m_max_size.y() / m_measured_font_size * size);
+        int old_y = -1, x = 0;
+        for (auto &block : m_blocks) {
+            const int y = block.offset.y();
+            if (y != old_y) x = 0;
+            block.offset = Vector2i(x, y / m_measured_font_size * size);
+            block.width = int(nvgTextBounds(ctx, 0, 0, block.text.c_str(), nullptr, nullptr));
+            x += block.width; old_y = y;
+            m_max_size = max(m_max_size, block.offset + Vector2i(block.width, size));
+        }
+        m_offset.y() = m_offset.y() / m_measured_font_size * size;
+    }
+    m_measured_font_size = size;
+    m_measured_font = m_font;
+}
+
 void TextArea::append(const std::string &text) {
     NVGcontext *ctx = screen()->nvg_context();
+    refresh_text_metrics(ctx);
 
     nvgFontSize(ctx, font_size());
     nvgFontFace(ctx, m_font.c_str());
@@ -102,7 +125,8 @@ bool TextArea::keyboard_event(int key, int /* scancode */, int action, int modif
     return false;
 }
 
-Vector2i TextArea::preferred_size(NVGcontext *) const {
+Vector2i TextArea::preferred_size(NVGcontext *ctx) const {
+    const_cast<TextArea *>(this)->refresh_text_metrics(ctx);
     return m_max_size + m_padding * 2;
 }
 

@@ -59,7 +59,7 @@ public:
     const std::string &caption() const { return m_caption; }
 
     /// Sets the caption of this Button.
-    void set_caption(const std::string &caption) { m_caption = caption; }
+    void set_caption(const std::string &caption) { if (m_caption != caption) { m_caption = caption; request_layout(); } }
 
     /// Returns the background color of this Button.
     const Color &background_color() const { return m_background_color; }

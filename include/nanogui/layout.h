@@ -68,6 +68,10 @@ public:
      *     for icons, etc.
      */
     virtual Vector2i preferred_size(NVGcontext *ctx, const Widget *widget) const = 0;
+
+protected:
+    static Vector2i target_size(NVGcontext *ctx, Widget *child, int available_width);
+    static int layout_margin(const Widget *widget, int margin);
 };
 
 /**

@@ -16,9 +16,39 @@
 #include <nanogui/window.h>
 #include <nanogui/theme.h>
 #include <nanogui/label.h>
+#include <nanogui/button.h>
+#include <nanogui/checkbox.h>
+#include <nanogui/textbox.h>
+#include <nanogui/slider.h>
 #include <numeric>
 
 NAMESPACE_BEGIN(nanogui)
+
+int Layout::layout_margin(const Widget *widget, int margin) {
+    return int(std::lround(margin * widget->theme()->m_margin_scale));
+}
+
+Vector2i Layout::target_size(NVGcontext *ctx, Widget *child, int available_width) {
+    child->refresh_presentation();
+    child->set_layout_width(available_width);
+    Vector2i ps = child->preferred_size(ctx), fs = child->fixed_size();
+    if (child->theme()->m_bounded_windows) {
+        if (child->layout()) {
+            if (fs.x()) fs.x() = std::max(fs.x(), ps.x());
+            if (fs.y()) fs.y() = std::max(fs.y(), ps.y());
+        }
+        if (dynamic_cast<Button *>(child) || dynamic_cast<CheckBox *>(child)) {
+            if (fs.x()) fs.x() = std::max(fs.x(), ps.x());
+            if (fs.y()) fs.y() = std::max(fs.y(), ps.y());
+        } else if (dynamic_cast<Label *>(child)) {
+            if (fs.y()) fs.y() = std::max(fs.y(), ps.y());
+        } else if (dynamic_cast<TextBox *>(child)) {
+            if (fs.x()) fs.x() = std::max(fs.x(), 100);
+            if (fs.y()) fs.y() = std::max(fs.y(), ps.y());
+        } else if (dynamic_cast<Slider *>(child) && fs.x()) fs.x() = std::max(fs.x(), 100);
+    }
+    return max(child->minimum_size(ctx), Vector2i(fs.x() ? fs.x() : ps.x(), fs.y() ? fs.y() : ps.y()));
+}
 
 BoxLayout::BoxLayout(Orientation orientation, Alignment alignment,
           int margin, int spacing)
@@ -27,108 +57,75 @@ BoxLayout::BoxLayout(Orientation orientation, Alignment alignment,
 }
 
 Vector2i BoxLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const {
-    Vector2i size(2*m_margin);
-
-    int y_offset = 0;
-    const Window *window = dynamic_cast<const Window *>(widget);
-    if (window && !window->title().empty()) {
-        if (m_orientation == Orientation::Vertical)
-            size[1] += widget->theme()->m_window_header_height - m_margin/2;
-        else
-            y_offset = widget->theme()->m_window_header_height;
+    const int margin = layout_margin(widget, m_margin), gap = layout_margin(widget, m_spacing);
+    const auto *window = dynamic_cast<const Window *>(widget);
+    const int header = window && !window->title().empty() ? widget->theme()->m_window_header_height : 0;
+    const int limit = widget->layout_width() > 0 ? std::max(1, widget->layout_width() - 2 * margin) : 0;
+    const bool horizontal = m_orientation == Orientation::Horizontal;
+    int x = 0, y = 0, row_height = 0, width = 0;
+    for (auto child : widget->children()) {
+        if (!child->visible()) continue;
+        Vector2i size = target_size(ctx, child, limit);
+        if (horizontal) {
+            if (limit && x && x + gap + size.x() > limit) { y += row_height + gap; x = 0; row_height = 0; }
+            x += (x ? gap : 0) + size.x();
+            width = std::max(width, x); row_height = std::max(row_height, size.y());
+        } else {
+            y += (y ? gap : 0) + size.y(); width = std::max(width, size.x());
+        }
     }
-
-    bool first = true;
-    int axis1 = (int) m_orientation, axis2 = ((int) m_orientation + 1)%2;
-    for (auto w : widget->children()) {
-        if (!w->visible())
-            continue;
-        if (first)
-            first = false;
-        else
-            size[axis1] += m_spacing;
-
-        Vector2i ps = w->preferred_size(ctx), fs = w->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
-
-        size[axis1] += target_size[axis1];
-        size[axis2] = std::max(size[axis2], target_size[axis2] + 2*m_margin);
-        first = false;
-    }
-    return size + Vector2i(0, y_offset);
+    return Vector2i(width + 2 * margin, y + row_height + 2 * margin + header - (!horizontal && header ? margin / 2 : 0));
 }
 
 void BoxLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
-    Vector2i fs_w = widget->fixed_size();
-    Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
-    );
-
-    int axis1 = (int) m_orientation, axis2 = ((int) m_orientation + 1)%2;
-    int position = m_margin;
-    int y_offset = 0;
-
-    const Window *window = dynamic_cast<const Window *>(widget);
-    if (window && !window->title().empty()) {
-        if (m_orientation == Orientation::Vertical) {
-            position += widget->theme()->m_window_header_height - m_margin/2;
-        } else {
-            y_offset = widget->theme()->m_window_header_height;
-            container_size[1] -= y_offset;
-        }
+    const int margin = layout_margin(widget, m_margin), gap = layout_margin(widget, m_spacing);
+    const auto *window = dynamic_cast<const Window *>(widget);
+    const int header = window && !window->title().empty() ? widget->theme()->m_window_header_height : 0;
+    const bool horizontal = m_orientation == Orientation::Horizontal;
+    const int available = std::max(1, widget->width() - 2 * margin);
+    std::vector<std::pair<Widget *, Vector2i>> children;
+    int total_height = 0, total_width = 0, flexible = 0;
+    for (auto child : widget->children()) {
+        if (!child->visible()) continue;
+        auto size = target_size(ctx, child, widget->theme()->m_bounded_windows ? available : 0);
+        total_height += size.y() + (children.empty() ? 0 : gap);
+        total_width += size.x() + (children.empty() ? 0 : gap);
+        flexible += child->flexible_height() ? 1 : 0;
+        children.emplace_back(child, size);
     }
-
-    bool first = true;
-    for (auto w : widget->children()) {
-        if (!w->visible())
-            continue;
-        if (first)
-            first = false;
-        else
-            position += m_spacing;
-
-        Vector2i ps = w->preferred_size(ctx), fs = w->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
-        Vector2i pos(0, y_offset);
-
-        pos[axis1] = position;
-
-        switch (m_alignment) {
-            case Alignment::Minimum:
-                pos[axis2] += m_margin;
-                break;
-            case Alignment::Middle:
-                pos[axis2] += (container_size[axis2] - target_size[axis2]) / 2;
-                break;
-            case Alignment::Maximum:
-                pos[axis2] += container_size[axis2] - target_size[axis2] - m_margin * 2;
-                break;
-            case Alignment::Fill:
-                pos[axis2] += m_margin;
-                target_size[axis2] = fs[axis2] ? fs[axis2] : (container_size[axis2] - m_margin * 2);
-                break;
+    const int slack = widget->height() - header + (header ? margin / 2 : 0) - 2 * margin - total_height;
+    int x = margin, y = margin + header - (!horizontal && header ? margin / 2 : 0), row_height = 0;
+    for (auto &[child, size] : children) {
+        Vector2i pos(x, y);
+        if (horizontal) {
+            if (widget->theme()->m_bounded_windows && x > margin && x + size.x() > widget->width() - margin) {
+                x = margin; y += row_height + gap; row_height = 0;
+            }
+            pos = Vector2i(x, y);
+            if (!widget->theme()->m_bounded_windows || total_width <= available) {
+                if (m_alignment == Alignment::Middle) pos.y() = header + (widget->height() - header - size.y()) / 2;
+                else if (m_alignment == Alignment::Maximum) pos.y() = widget->height() - size.y() - 2 * margin;
+                else if (m_alignment == Alignment::Fill && !child->fixed_height()) size.y() = std::max(1, widget->height() - header - 2 * margin);
+            }
+            x += size.x() + gap; row_height = std::max(row_height, size.y());
+        } else {
+            if (child->flexible_height() && flexible) size.y() = std::max(32, size.y() + slack / flexible);
+            if (m_alignment == Alignment::Middle) pos.x() = (widget->width() - size.x()) / 2;
+            else if (m_alignment == Alignment::Maximum) pos.x() = widget->width() - size.x() - 2 * margin;
+            else if (m_alignment == Alignment::Fill && !child->fixed_width()) size.x() = std::max(available, child->minimum_size(ctx).x());
+            y += size.y() + gap;
         }
-
-        w->set_position(pos);
-        w->set_size(target_size);
-        w->perform_layout(ctx);
-        position += target_size[axis1];
+        child->set_position(pos); child->set_size(size); child->perform_layout(ctx);
     }
 }
 
 Vector2i GroupLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const {
-    int height = m_margin, width = 2*m_margin;
+    const int margin = layout_margin(widget, m_margin);
+    int height = margin, width = 2*margin;
 
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        height += widget->theme()->m_window_header_height - m_margin/2;
+        height += widget->theme()->m_window_header_height - margin/2;
 
     bool first = true, indent = false;
     for (auto c : widget->children()) {
@@ -136,54 +133,50 @@ Vector2i GroupLayout::preferred_size(NVGcontext *ctx, const Widget *widget) cons
             continue;
         const Label *label = dynamic_cast<const Label *>(c);
         if (!first)
-            height += (label == nullptr) ? m_spacing : m_group_spacing;
+            height += (label == nullptr) ? layout_margin(widget, m_spacing) : layout_margin(widget, m_group_spacing);
         first = false;
 
-        Vector2i ps = c->preferred_size(ctx), fs = c->fixed_size();
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
+        Vector2i target_size = Layout::target_size(ctx, c, widget->layout_width() > 0 ? std::max(1, widget->layout_width() - 2*margin) : 0);
 
         bool indent_cur = indent && label == nullptr;
         height += target_size.y();
-        width = std::max(width, target_size.x() + 2*m_margin + (indent_cur ? m_group_indent : 0));
+        width = std::max(width, target_size.x() + 2*margin + (indent_cur ? layout_margin(widget, m_group_indent) : 0));
 
         if (label)
             indent = !label->caption().empty();
     }
-    height += m_margin;
+    height += margin;
     return Vector2i(width, height);
 }
 
 void GroupLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
-    int height = m_margin, available_width =
-        (widget->fixed_width() ? widget->fixed_width() : widget->width()) - 2*m_margin;
+    const int margin = layout_margin(widget, m_margin);
+    int height = margin, available_width =
+        widget->width() - 2*margin;
 
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        height += widget->theme()->m_window_header_height - m_margin/2;
+        height += widget->theme()->m_window_header_height - margin/2;
 
+    int flexible = 0;
+    for (auto* child : widget->children()) if (child->visible() && child->flexible_height()) ++flexible;
+    const int slack = widget->height() - preferred_size(ctx, widget).y();
     bool first = true, indent = false;
     for (auto c : widget->children()) {
         if (!c->visible())
             continue;
         const Label *label = dynamic_cast<const Label *>(c);
         if (!first)
-            height += (label == nullptr) ? m_spacing : m_group_spacing;
+            height += (label == nullptr) ? layout_margin(widget, m_spacing) : layout_margin(widget, m_group_spacing);
         first = false;
 
         bool indent_cur = indent && label == nullptr;
-        Vector2i ps = Vector2i(available_width - (indent_cur ? m_group_indent : 0),
-                               c->preferred_size(ctx).y());
-        Vector2i fs = c->fixed_size();
+        const int width = std::max(1, available_width - (indent_cur ? layout_margin(widget, m_group_indent) : 0));
+        Vector2i target_size = Layout::target_size(ctx, c, widget->theme()->m_bounded_windows ? width : 0);
+        if (!c->fixed_width()) target_size.x() = c->flexible_height() ? std::max(width, c->minimum_size(ctx).x()) : std::max(width, target_size.x());
+        if (c->flexible_height() && flexible) target_size.y() = std::max(32, target_size.y() + slack / flexible);
 
-        Vector2i target_size(
-            fs[0] ? fs[0] : ps[0],
-            fs[1] ? fs[1] : ps[1]
-        );
-
-        c->set_position(Vector2i(m_margin + (indent_cur ? m_group_indent : 0), height));
+        c->set_position(Vector2i(margin + (indent_cur ? layout_margin(widget, m_group_indent) : 0), height));
         c->set_size(target_size);
         c->perform_layout(ctx);
 
@@ -196,20 +189,21 @@ void GroupLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
 
 Vector2i GridLayout::preferred_size(NVGcontext *ctx,
                                    const Widget *widget) const {
+    const int margin = layout_margin(widget, m_margin);
     /* Compute minimum row / column sizes */
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
 
     Vector2i size(
-        2*m_margin + std::accumulate(grid[0].begin(), grid[0].end(), 0)
-         + std::max((int) grid[0].size() - 1, 0) * m_spacing[0],
-        2*m_margin + std::accumulate(grid[1].begin(), grid[1].end(), 0)
-         + std::max((int) grid[1].size() - 1, 0) * m_spacing[1]
+        2*margin + std::accumulate(grid[0].begin(), grid[0].end(), 0)
+         + std::max((int) grid[0].size() - 1, 0) * layout_margin(widget, m_spacing[0]),
+        2*margin + std::accumulate(grid[1].begin(), grid[1].end(), 0)
+         + std::max((int) grid[1].size() - 1, 0) * layout_margin(widget, m_spacing[1])
     );
 
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        size[1] += widget->theme()->m_window_header_height - m_margin/2;
+        size[1] += widget->theme()->m_window_header_height - margin/2;
 
     return size;
 }
@@ -251,10 +245,11 @@ void GridLayout::compute_layout(NVGcontext *ctx, const Widget *widget, std::vect
 }
 
 void GridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
+    const int margin = layout_margin(widget, m_margin);
     Vector2i fs_w = widget->fixed_size();
     Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
+        widget->bounded() ? widget->width() : (fs_w[0] ? fs_w[0] : widget->width()),
+        widget->bounded() ? widget->height() : (fs_w[1] ? fs_w[1] : widget->height())
     );
 
     /* Compute minimum row / column sizes */
@@ -265,18 +260,15 @@ void GridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
     Vector2i extra(0);
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        extra[1] += widget->theme()->m_window_header_height - m_margin / 2;
+        extra[1] += widget->theme()->m_window_header_height - margin / 2;
 
     /* Strech to size provided by \c widget */
     for (int i = 0; i < 2; i++) {
-        int grid_size = 2 * m_margin + extra[i];
-        for (int s : grid[i]) {
-            grid_size += s;
-            if (i+1 < dim[i])
-                grid_size += m_spacing[i];
-        }
+        int grid_size = 2 * margin + extra[i];
+        for (int s : grid[i]) grid_size += s;
+        grid_size += std::max(0, dim[i] - 1) * layout_margin(widget, m_spacing[i]);
 
-        if (grid_size < container_size[i]) {
+        if (dim[i] > 0 && grid_size < container_size[i]) {
             /* Re-distribute remaining space evenly */
             int gap = container_size[i] - grid_size;
             int g = gap / dim[i];
@@ -289,7 +281,7 @@ void GridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
     }
 
     int axis1 = (int) m_orientation, axis2 = (axis1 + 1) % 2;
-    Vector2i start = m_margin + extra;
+    Vector2i start = margin + extra;
 
     size_t num_children = widget->children().size();
     size_t child = 0;
@@ -335,9 +327,9 @@ void GridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
             w->set_position(item_pos);
             w->set_size(target_size);
             w->perform_layout(ctx);
-            pos[axis1] += grid[axis1][i1] + m_spacing[axis1];
+            pos[axis1] += grid[axis1][i1] + layout_margin(widget, m_spacing[axis1]);
         }
-        pos[axis2] += grid[axis2][i2] + m_spacing[axis2];
+        pos[axis2] += grid[axis2][i2] + layout_margin(widget, m_spacing[axis2]);
     }
 }
 
@@ -348,6 +340,7 @@ AdvancedGridLayout::AdvancedGridLayout(const std::vector<int> &cols, const std::
 }
 
 Vector2i AdvancedGridLayout::preferred_size(NVGcontext *ctx, const Widget *widget) const {
+    const int margin = layout_margin(widget, m_margin);
     /* Compute minimum row / column sizes */
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
@@ -356,24 +349,25 @@ Vector2i AdvancedGridLayout::preferred_size(NVGcontext *ctx, const Widget *widge
         std::accumulate(grid[0].begin(), grid[0].end(), 0),
         std::accumulate(grid[1].begin(), grid[1].end(), 0));
 
-    Vector2i extra(2 * m_margin);
+    Vector2i extra(2 * margin);
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        extra[1] += widget->theme()->m_window_header_height - m_margin/2;
+        extra[1] += widget->theme()->m_window_header_height - margin/2;
 
     return size+extra;
 }
 
 void AdvancedGridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
+    const int margin = layout_margin(widget, m_margin);
     std::vector<int> grid[2];
     compute_layout(ctx, widget, grid);
 
-    grid[0].insert(grid[0].begin(), m_margin);
+    grid[0].insert(grid[0].begin(), margin);
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        grid[1].insert(grid[1].begin(), widget->theme()->m_window_header_height + m_margin/2);
+        grid[1].insert(grid[1].begin(), widget->theme()->m_window_header_height + margin/2);
     else
-        grid[1].insert(grid[1].begin(), m_margin);
+        grid[1].insert(grid[1].begin(), margin);
 
     for (int axis=0; axis<2; ++axis) {
         for (size_t i=1; i<grid[axis].size(); ++i)
@@ -415,16 +409,17 @@ void AdvancedGridLayout::perform_layout(NVGcontext *ctx, Widget *widget) const {
 
 void AdvancedGridLayout::compute_layout(NVGcontext *ctx, const Widget *widget,
                                        std::vector<int> *_grid) const {
+    const int margin = layout_margin(widget, m_margin);
     Vector2i fs_w = widget->fixed_size();
     Vector2i container_size(
-        fs_w[0] ? fs_w[0] : widget->width(),
-        fs_w[1] ? fs_w[1] : widget->height()
+        widget->bounded() ? widget->width() : (fs_w[0] ? fs_w[0] : widget->width()),
+        widget->bounded() ? widget->height() : (fs_w[1] ? fs_w[1] : widget->height())
     );
 
-    Vector2i extra(2 * m_margin);
+    Vector2i extra(2 * margin);
     const Window *window = dynamic_cast<const Window *>(widget);
     if (window && !window->title().empty())
-        extra[1] += widget->theme()->m_window_header_height - m_margin/2;
+        extra[1] += widget->theme()->m_window_header_height - margin/2;
 
     container_size -= extra;
 
@@ -433,6 +428,7 @@ void AdvancedGridLayout::compute_layout(NVGcontext *ctx, const Widget *widget,
         const std::vector<int> &sizes = axis == 0 ? m_cols : m_rows;
         const std::vector<float> &stretch = axis == 0 ? m_col_stretch : m_row_stretch;
         grid = sizes;
+        for (int &size : grid) size = layout_margin(widget, size);
 
         for (int phase = 0; phase < 2; ++phase) {
             for (auto pair : m_anchor) {

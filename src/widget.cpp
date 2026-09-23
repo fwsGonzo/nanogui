@@ -15,6 +15,9 @@
 #include <nanogui/window.h>
 #include <nanogui/opengl.h>
 #include <nanogui/screen.h>
+#include <nanogui/button.h>
+#include <nanogui/checkbox.h>
+#include <nanogui/textbox.h>
 
 /* Uncomment the following definition to draw red bounding
    boxes around widgets (useful for debugging drawing code) */
@@ -41,8 +44,7 @@ Widget::~Widget() {
         return;
     }
     for (auto child : m_children) {
-        if (child)
-            child->dec_ref();
+        if (child) { child->set_parent(nullptr); child->dec_ref(); }
     }
 }
 
@@ -55,7 +57,8 @@ void Widget::set_theme(Theme *theme) {
 }
 
 int Widget::font_size() const {
-    return (m_font_size < 0 && m_theme) ? m_theme->m_standard_font_size : m_font_size;
+    const int authored = (m_font_size < 0 && m_theme) ? m_theme->m_standard_font_size : m_font_size;
+    return m_theme && m_theme->m_text_scale != 1.f ? std::max(11, int(std::lround(authored * m_theme->m_text_scale))) : authored;
 }
 
 Vector2i Widget::preferred_size(NVGcontext *ctx) const {
@@ -66,6 +69,11 @@ Vector2i Widget::preferred_size(NVGcontext *ctx) const {
 }
 
 void Widget::perform_layout(NVGcontext *ctx) {
+    const Vector2i old_scroll = m_scroll_offset;
+    if (m_bounded) {
+        for (auto c : m_children) c->set_position(c->position() + old_scroll);
+        m_scroll_offset = Vector2i(0);
+    }
     if (m_layout) {
         m_layout->perform_layout(ctx, this);
     } else {
@@ -78,9 +86,65 @@ void Widget::perform_layout(NVGcontext *ctx) {
             c->perform_layout(ctx);
         }
     }
+    if (m_bounded) {
+        Vector2i extent = m_size;
+        for (auto c : m_children) if (c->visible()) extent = max(extent, c->position() + c->size());
+        m_overflow = max(Vector2i(0), extent - m_size);
+        scroll_to(old_scroll);
+    }
+
+}
+
+void Widget::request_layout() { if (auto* scr = screen()) scr->request_layout(); }
+
+void Widget::set_authored_size(const Vector2i &size) {
+    if (size.x() < 0 || size.y() < 0 || size.x() > 16384 || size.y() > 16384)
+        throw std::invalid_argument("Widget authored size out of range");
+    m_authored_size = size;
+    m_has_authored_size = true;
+    refresh_presentation();
+    request_layout();
+}
+
+void Widget::refresh_presentation() {
+    if (m_has_authored_size) {
+        for (int axis = 0; axis < 2; ++axis)
+            m_fixed_size[axis] = m_authored_size[axis] == 0 ? 0 :
+                std::max(1, int(std::lround(m_authored_size[axis] * m_theme->m_content_scale)));
+    }
+}
+
+void Widget::scroll_to(Vector2i offset) {
+    offset = min(max(offset, Vector2i(0)), m_overflow);
+    const Vector2i delta = m_scroll_offset - offset;
+    for (auto c : m_children) c->set_position(c->position() + delta);
+    m_scroll_offset = offset;
+    if (delta != Vector2i(0) && screen()) screen()->set_needs_redraw(true);
+}
+
+void Widget::reveal_rect(Vector2i start, Vector2i end) {
+    if (!m_bounded) return;
+    start += m_scroll_offset - absolute_position();
+    end += m_scroll_offset - absolute_position();
+    Vector2i offset = m_scroll_offset;
+    for (int axis = 0; axis < 2; ++axis) {
+        const int inset = axis == 1 ? m_clip_top : 0;
+        if (start[axis] < offset[axis] + inset) offset[axis] = start[axis] - inset;
+        else if (end[axis] > offset[axis] + m_size[axis])
+            offset[axis] = std::min(start[axis] - inset, end[axis] - m_size[axis]);
+    }
+    scroll_to(offset);
+}
+
+void Widget::reveal(const Widget *target) {
+    for (Widget *p = this; p; p = p->parent())
+        p->reveal_rect(target->absolute_position(), target->absolute_position() + target->size());
 }
 
 Widget *Widget::find_widget(const Vector2i &p) {
+    if (m_bounded && (!contains(p) || p.y() < m_pos.y() + m_clip_top)) return contains(p) ? this : nullptr;
+    if (m_bounded && contains(p) && ((m_overflow.x() > 0 && p.y() >= m_pos.y() + height() - 8) ||
+        (m_overflow.y() > 0 && p.x() >= m_pos.x() + width() - 8))) return this;
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         Widget *child = *it;
         if (child->visible() && child->contains(p - m_pos))
@@ -90,6 +154,9 @@ Widget *Widget::find_widget(const Vector2i &p) {
 }
 
 const Widget *Widget::find_widget(const Vector2i &p) const {
+    if (m_bounded && (!contains(p) || p.y() < m_pos.y() + m_clip_top)) return contains(p) ? this : nullptr;
+    if (m_bounded && contains(p) && ((m_overflow.x() > 0 && p.y() >= m_pos.y() + height() - 8) ||
+        (m_overflow.y() > 0 && p.x() >= m_pos.x() + width() - 8))) return this;
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         Widget *child = *it;
         if (child->visible() && child->contains(p - m_pos))
@@ -99,6 +166,19 @@ const Widget *Widget::find_widget(const Vector2i &p) const {
 }
 
 bool Widget::mouse_button_event(const Vector2i &p, int button, bool down, int modifiers) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && !down && m_scroll_drag >= 0) {
+        m_scroll_drag = -1;
+        return true;
+    }
+    if (m_bounded && (!contains(p) || p.y() < m_pos.y() + m_clip_top)) return false;
+    if (m_bounded && button == GLFW_MOUSE_BUTTON_LEFT) {
+        if (!down) m_scroll_drag = -1;
+        else {
+            if (m_overflow.y() > 0 && p.x() >= m_pos.x() + width() - 8) m_scroll_drag = 1;
+            else if (m_overflow.x() > 0 && p.y() >= m_pos.y() + height() - 8) m_scroll_drag = 0;
+            if (m_scroll_drag >= 0) return true;
+        }
+    }
     for (auto it = m_children.rbegin(); it != m_children.rend(); ++it) {
         Widget *child = *it;
         if (child->visible() && child->contains(p - m_pos) &&
@@ -139,11 +219,23 @@ bool Widget::scroll_event(const Vector2i &p, const Vector2f &rel) {
         if (child->contains(p - m_pos) && child->scroll_event(p - m_pos, rel))
             return true;
     }
+    if (m_bounded && m_overflow != Vector2i(0)) {
+        Vector2i delta(int(-rel.x() * 40), int(-rel.y() * 40));
+        if (m_overflow.y() == 0 && delta.x() == 0) delta = Vector2i(delta.y(), 0);
+        Vector2i old = m_scroll_offset;
+        scroll_to(old + delta);
+        return old != m_scroll_offset;
+    }
     return false;
 }
 
-bool Widget::mouse_drag_event(const Vector2i &, const Vector2i &, int, int) {
-    return false;
+bool Widget::mouse_drag_event(const Vector2i &, const Vector2i &rel, int, int) {
+    if (m_scroll_drag < 0) return false;
+    const int axis = m_scroll_drag;
+    Vector2i offset = m_scroll_offset;
+    offset[axis] += int(float(rel[axis]) * (m_size[axis] + m_overflow[axis]) / std::max(1, m_size[axis]));
+    scroll_to(offset);
+    return true;
 }
 
 bool Widget::mouse_enter_event(const Vector2i &, bool enter) {
@@ -182,6 +274,7 @@ void Widget::remove_child(const Widget *widget) {
                      m_children.end());
     if (m_children.size() == child_count)
         throw std::runtime_error("Widget::remove_child(): widget not found!");
+    const_cast<Widget*>(widget)->set_parent(nullptr);
     widget->dec_ref();
 }
 
@@ -190,6 +283,7 @@ void Widget::remove_child_at(int index) {
         throw std::runtime_error("Widget::remove_child_at(): out of bounds!");
     Widget *widget = m_children[index];
     m_children.erase(m_children.begin() + index);
+    const_cast<Widget*>(widget)->set_parent(nullptr);
     widget->dec_ref();
 }
 
@@ -247,6 +341,9 @@ void Widget::draw(NVGcontext *ctx) {
     if (m_children.empty())
         return;
 
+    nvgSave(ctx);
+    if (m_bounded) nvgIntersectScissor(ctx, m_pos.x(), m_pos.y() + m_clip_top,
+        m_size.x(), std::max(0, m_size.y() - m_clip_top));
     nvgTranslate(ctx, m_pos.x(), m_pos.y());
     for (auto child : m_children) {
         if (!child->visible())
@@ -264,6 +361,22 @@ void Widget::draw(NVGcontext *ctx) {
         #endif
     }
     nvgTranslate(ctx, -m_pos.x(), -m_pos.y());
+    nvgRestore(ctx);
+    if (m_bounded && m_overflow.x() > 0) {
+        const float track = float(width()) * width() / (width() + m_overflow.x());
+        nvgBeginPath(ctx);
+        nvgRoundedRect(ctx, m_pos.x() + (width() - track) * m_scroll_offset.x() / m_overflow.x(), m_pos.y() + height() - 4, track, 3, 1);
+        nvgFillColor(ctx, m_theme->m_text_color); nvgFill(ctx);
+    }
+    if (m_bounded && m_overflow.y() > 0) {
+        const float view = std::max(1, m_size.y() - m_clip_top);
+        const float track = view * view / (view + m_overflow.y());
+        nvgBeginPath(ctx);
+        nvgRoundedRect(ctx, m_pos.x() + m_size.x() - 4,
+            m_pos.y() + m_clip_top + (view - track) * m_scroll_offset.y() / m_overflow.y(),
+            3, track, 1);
+        nvgFillColor(ctx, m_theme->m_text_color); nvgFill(ctx);
+    }
 }
 
 NAMESPACE_END(nanogui)

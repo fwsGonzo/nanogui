@@ -13,6 +13,7 @@
 #include <nanogui/popup.h>
 #include <nanogui/theme.h>
 #include <nanogui/opengl.h>
+#include <nanogui/screen.h>
 
 NAMESPACE_BEGIN(nanogui)
 
@@ -21,6 +22,11 @@ Popup::Popup(Widget *parent, Window *parent_window)
       m_anchor_offset(30), m_anchor_size(15), m_side(Side::Right) { }
 
 void Popup::perform_layout(NVGcontext *ctx) {
+    if (m_theme->m_bounded_windows) {
+        set_bounded(true);
+        m_size = max(Vector2i(1), min(m_size, screen()->usable_size()));
+        set_layout_width(width());
+    }
     if (m_layout || m_children.size() != 1) {
         Widget::perform_layout(ctx);
     } else {
@@ -33,11 +39,16 @@ void Popup::perform_layout(NVGcontext *ctx) {
 }
 
 void Popup::refresh_relative_placement() {
-    if (!m_parent_window)
-        return;
-    m_parent_window->refresh_relative_placement();
-    m_visible &= m_parent_window->visible_recursive();
-    m_pos = m_parent_window->position() + m_anchor_pos - Vector2i(0, m_anchor_offset);
+    if (m_parent_window) {
+        m_parent_window->refresh_relative_placement();
+        m_visible &= m_parent_window->visible_recursive();
+        m_pos = m_parent_window->position() + m_anchor_pos - Vector2i(0, m_anchor_offset);
+    }
+    if (m_theme->m_bounded_windows) {
+        if (m_parent_window && m_pos.x() + width() > screen()->usable_origin().x() + screen()->usable_size().x())
+            m_pos.x() = m_parent_window->position().x() - width();
+        m_pos = max(screen()->usable_origin(), min(m_pos, screen()->usable_origin() + screen()->usable_size() - m_size));
+    }
 }
 
 void Popup::draw(NVGcontext* ctx) {

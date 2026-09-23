@@ -52,6 +52,10 @@ public:
     bool editable() const { return m_editable; }
     void set_editable(bool editable);
 
+    /// Explicit editing gesture; mobile keyboards must not open on focus alone.
+    void activate_text_input();
+    bool text_input_active() const { return m_text_input_active && focused() && m_editable && enabled(); }
+
     /// Read-only: the box gains focus, selection and copy (mouse-drag, double-click,
     /// Ctrl+A, Ctrl+C) exactly like an editable box, but every mutation — typing,
     /// paste, backspace/delete, cut — is rejected and the value cannot change.
@@ -138,6 +142,7 @@ protected:
     bool m_read_only;
     bool m_spinnable;
     bool m_committed;
+    bool m_text_input_active = false;
     char m_password_character = 0;   // 0 = show plaintext; else mask byte-for-byte
 	Color m_text_color {1.0f, 1.0f, 1.0f, 0.0f};
     std::string m_value;

@@ -131,7 +131,8 @@ public:
                          const std::string &title = "Untitled") {
         assert(m_screen);
         m_window = new Window(m_screen, title);
-        m_layout = new AdvancedGridLayout({10, 0, 10, 0}, {});
+        const int padding = 10;
+        m_layout = new AdvancedGridLayout({padding, 0, padding, 0}, {});
         m_layout->set_margin(10);
         m_layout->set_col_stretch(2, 1);
         m_window->set_position(pos);

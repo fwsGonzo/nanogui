@@ -50,7 +50,17 @@ TextBox::TextBox(Widget *parent, const std::string &value)
 
 void TextBox::set_editable(bool editable) {
     m_editable = editable;
+    if (!editable)
+        m_text_input_active = false;
     set_cursor(interactive() ? Cursor::IBeam : Cursor::Arrow);
+}
+
+void TextBox::activate_text_input() {
+    if (!m_editable || !enabled())
+        return;
+    if (!focused())
+        request_focus();
+    m_text_input_active = true;
 }
 
 void TextBox::set_read_only(bool read_only) {
@@ -69,6 +79,8 @@ Color TextBox::text_color() const {
 }
 
 Vector2i TextBox::preferred_size(NVGcontext *ctx) const {
+    nvgFontFace(ctx, "sans");
+    nvgFontSize(ctx, font_size());
     Vector2i size(0, font_size() * 1.4f);
 
     float uw = 0;
@@ -311,6 +323,10 @@ bool TextBox::mouse_button_event(const Vector2i &p, int button, bool down,
             request_focus();
     }
 
+    if (button == GLFW_MOUSE_BUTTON_1 && down && focused() &&
+        (!m_spinnable || spin_area(p) == SpinArea::None))
+        activate_text_input();
+
     if (interactive() && focused()) {
         if (down) {
             m_mouse_down_pos = p;
@@ -385,6 +401,8 @@ bool TextBox::mouse_drag_event(const Vector2i &p, const Vector2i &/* rel */,
 
 bool TextBox::focus_event(bool focused) {
     Widget::focus_event(focused);
+    if (!focused)
+        m_text_input_active = false;
 
     std::string backup = m_value;
 

@@ -114,6 +114,16 @@ public:
     void redraw();
 
 	/// Return whether or not the screen needs to be redrawn
+	void sync_size(const Vector2i &framebuffer, float ratio) {
+        m_fbsize = framebuffer; m_pixel_ratio = ratio;
+        Widget::set_size(Vector2i(Vector2f(framebuffer) / ratio));
+    }
+    Vector2i usable_origin() const { return m_usable_origin; }
+    Vector2i usable_size() const { return m_usable_size.x() > 0 ? m_usable_size : max(Vector2i(1), m_size - Vector2i(12)); }
+    void set_usable_bounds(Vector2i origin, Vector2i size) { m_usable_origin = origin; m_usable_size = max(Vector2i(1), size); }
+    void request_layout() { m_layout_dirty = true; m_redraw = true; }
+    bool layout_dirty() const { return m_layout_dirty; }
+    void clear_layout_dirty() { m_layout_dirty = false; }
 	bool needs_redraw() const { return m_redraw; }
 	void set_needs_redraw(bool value) { m_redraw = value; }
 
@@ -306,6 +316,8 @@ protected:
     bool m_stencil_buffer;
     bool m_float_buffer;
     bool m_redraw;
+    bool m_layout_dirty = true;
+    Vector2i m_usable_origin = Vector2i(6), m_usable_size = Vector2i(0);
     std::function<void(Vector2i)> m_resize_callback;
 #if defined(NANOGUI_USE_METAL)
     void *m_metal_texture = nullptr;

@@ -50,7 +50,7 @@ public:
     /// Return the used \ref Layout generator
     const Layout *layout() const { return m_layout.get(); }
     /// Set the used \ref Layout generator
-    void set_layout(Layout *layout) { m_layout = layout; }
+    void set_layout(Layout *layout) { m_layout = layout; request_layout(); }
 
     /// Return the \ref Theme used to draw this widget
     Theme *theme() { return m_theme; }
@@ -197,7 +197,7 @@ public:
     /// Return current font size. If not set the default of the current theme will be returned
     int font_size() const;
     /// Set the font size of this widget
-    void set_font_size(int font_size) { m_font_size = font_size; }
+    void set_font_size(int font_size) { if (m_font_size != font_size) { m_font_size = font_size; request_layout(); } }
     /// Return whether the font size is explicitly specified for this widget
     bool has_font_size() const { return m_font_size > 0; }
 
@@ -260,7 +260,27 @@ public:
     virtual void perform_layout(NVGcontext *ctx);
 
     /// Draw the widget (and all child widgets)
+    virtual Vector2i minimum_size(NVGcontext*) const { return Vector2i(0); }
     virtual void draw(NVGcontext *ctx);
+
+    void request_layout();
+    void set_authored_size(const Vector2i &size);
+    void set_authored_width(int width) { set_authored_size(Vector2i(width, m_authored_size.y())); }
+    void set_authored_height(int height) { set_authored_size(Vector2i(m_authored_size.x(), height)); }
+    void refresh_presentation();
+    void set_bounded(bool bounded, int top = 0) { m_bounded = bounded; m_clip_top = top; }
+    bool bounded() const { return m_bounded; }
+    int clip_top() const { return m_clip_top; }
+    void reveal(const Widget *target);
+    void reveal_rect(Vector2i start, Vector2i end);
+    void set_layout_width(int width) { m_layout_width = std::max(0, width); }
+    int layout_width() const { return m_layout_width; }
+    void set_flexible_height(bool value) { m_flexible_height = value; }
+    bool flexible_height() const { return m_flexible_height; }
+    Vector2i scroll_offset() const { return m_scroll_offset; }
+    Vector2i overflow() const { return m_overflow; }
+    void scroll_to(Vector2i offset);
+
 
 protected:
     /**
@@ -280,6 +300,9 @@ protected:
     ref<Theme> m_theme;
     ref<Layout> m_layout;
     Vector2i m_pos, m_size, m_fixed_size;
+    Vector2i m_authored_size{0}, m_scroll_offset{0}, m_overflow{0};
+    bool m_has_authored_size = false, m_bounded = false, m_flexible_height = false;
+    int m_clip_top = 0, m_layout_width = 0, m_scroll_drag = -1;
     std::vector<Widget *> m_children;
 
     /**

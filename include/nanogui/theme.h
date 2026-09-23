@@ -59,6 +59,11 @@ public:
     int m_window_header_height;
     /// Size of drop shadow rendered behind the Window widgets (default: ``10``).
     int m_window_drop_shadow_size;
+    /// Scale of layout margins and widget content padding.
+    float m_content_scale = 1.f;
+    float m_text_scale = 1.f;
+    bool m_bounded_windows = false;
+    float m_margin_scale = 1.0f;
     /// Rounding radius for Button (and derived types) widgets (default: ``2``).
     int m_button_corner_radius;
     /// The border width for Tab_header widgets (default: ``0.75f``).

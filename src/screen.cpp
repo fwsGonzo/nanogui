@@ -639,7 +639,7 @@ void Screen::draw_widgets() {
         /* Draw tooltips */
         const Widget *widget = find_widget(m_mouse_pos);
         if (widget && !widget->tooltip().empty()) {
-            int tooltip_width = 150;
+            int tooltip_width = std::max(1, std::min(150, width() - 16));
 
             float bounds[4];
             nvgFontFace(m_nvg_context, "sans");
@@ -660,15 +660,15 @@ void Screen::draw_widgets() {
 
                 h = (bounds[2] - bounds[0]) / 2;
             }
-            int shift = 0;
-
-            if (pos.x() - h - 8 < 0) {
-                /* Keep tooltips on screen */
-                shift = pos.x() - h - 8;
-                pos.x() -= shift;
-                bounds[0] -= shift;
-                bounds[2] -= shift;
-            }
+            const float left = bounds[0] - h - 4;
+            const float top = bounds[1] - 4;
+            const float box_width = bounds[2] - bounds[0] + 8;
+            const float box_height = bounds[3] - bounds[1] + 8;
+            const int shift = int(left - std::clamp(left, 4.f, std::max(4.f, width() - box_width - 4)));
+            const int shift_y = int(top - std::clamp(top, 4.f, std::max(4.f, height() - box_height - 4)));
+            pos -= Vector2i(shift, shift_y);
+            bounds[0] -= shift; bounds[2] -= shift;
+            bounds[1] -= shift_y; bounds[3] -= shift_y;
 
             nvgGlobalAlpha(m_nvg_context,
                            std::min(1.0, 2 * (elapsed - 0.5f)) * 0.8);
@@ -679,7 +679,8 @@ void Screen::draw_widgets() {
                            (int) (bounds[2] - bounds[0]) + 8,
                            (int) (bounds[3] - bounds[1]) + 8, 3);
 
-            int px = (int) ((bounds[2] + bounds[0]) / 2) - h + shift;
+            int px = std::clamp((int) ((bounds[2] + bounds[0]) / 2) - h + shift,
+                                int(bounds[0] - h + 4), int(bounds[2] - h - 4));
             nvgMoveTo(m_nvg_context, px, bounds[1] - 10);
             nvgLineTo(m_nvg_context, px + 7, bounds[1] + 1);
             nvgLineTo(m_nvg_context, px - 7, bounds[1] + 1);
