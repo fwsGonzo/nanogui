@@ -57,7 +57,7 @@
 #  include <nanovg_mtl.h>
 #endif
 
-#if defined(__APPLE__)
+#if defined(NANOGUI_MACOS)
 #  define GLFW_EXPOSE_NATIVE_COCOA 1
 #  include <GLFW/glfw3native.h>
 #endif

@@ -281,7 +281,7 @@ if (${CMAKE_CXX_COMPILER_ID} MATCHES "Emscripten")
   # No dependencies
 elseif (WIN32)
   list(APPEND NANOGUI_LIBS opengl32)
-elseif (APPLE)
+elseif (APPLE AND NOT IOS)
   find_library(cocoa_library Cocoa)
   find_library(iokit_library IOKit)
   list(APPEND NANOGUI_LIBS ${cocoa_library} ${iokit_library})

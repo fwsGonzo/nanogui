@@ -40,7 +40,7 @@ NAMESPACE_BEGIN(nanogui)
 
 extern std::map<GLFWwindow *, Screen *> __nanogui_screens;
 
-#if defined(__APPLE__)
+#if defined(NANOGUI_MACOS)
   extern void disable_saved_application_state_osx();
 #endif
 
@@ -50,7 +50,7 @@ void init() {
         setlocale(LC_NUMERIC, "C");
     #endif
 
-    #if defined(__APPLE__)
+    #if defined(NANOGUI_MACOS)
         disable_saved_application_state_osx();
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
     #endif
@@ -310,7 +310,7 @@ std::string file_dialog(const std::vector<std::pair<std::string, std::string>> &
     return result.empty() ? "" : result.front();
 }
 
-#if !defined(__APPLE__)
+#if !defined(NANOGUI_MACOS)
 std::vector<std::string> file_dialog(const std::vector<std::pair<std::string, std::string>> &filetypes, bool save, bool multiple) {
     static const int FILE_DIALOG_MAX_BUFFER = 16384;
     if (save && multiple) {
@@ -319,6 +319,8 @@ std::vector<std::string> file_dialog(const std::vector<std::pair<std::string, st
 
 #if defined(EMSCRIPTEN)
     throw std::runtime_error("Opening files is not supported when NanoGUI is compiled via Emscripten");
+#elif defined(__APPLE__)
+    throw std::runtime_error("Opening files is not supported on iOS");
 #elif defined(_WIN32)
     OPENFILENAME ofn;
     ZeroMemory(&ofn, sizeof(OPENFILENAME));

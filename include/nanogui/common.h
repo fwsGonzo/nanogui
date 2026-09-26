@@ -21,6 +21,13 @@
 #include <string>
 #include <stdexcept>
 
+#if defined(__APPLE__)
+#  include <TargetConditionals.h>
+#  if !TARGET_OS_IPHONE
+#    define NANOGUI_MACOS 1
+#  endif
+#endif
+
 #define NANOGUI_VERSION_MAJOR 0
 #define NANOGUI_VERSION_MINOR 2
 #define NANOGUI_VERSION_PATCH 0
@@ -309,7 +316,7 @@ extern NANOGUI_EXPORT std::vector<std::string>
 file_dialog(const std::vector<std::pair<std::string, std::string>> &filetypes,
             bool save, bool multiple);
 
-#if defined(__APPLE__) || defined(DOXYGEN_DOCUMENTATION_BUILD)
+#if defined(NANOGUI_MACOS) || defined(DOXYGEN_DOCUMENTATION_BUILD)
 /**
  * \brief Move to the application bundle's parent directory
  *
