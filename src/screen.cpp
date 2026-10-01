@@ -417,6 +417,9 @@ void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
     glfwGetFramebufferSize(m_glfw_window, &m_fbsize[0], &m_fbsize[1]);
 
     m_pixel_ratio = get_pixel_ratio(window);
+#if defined(_WIN32) || defined(__linux__)
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);   /* see draw_setup() */
+#endif
 
 #if defined(EMSCRIPTEN)
     double w, h;
@@ -571,9 +574,15 @@ void Screen::draw_setup() {
     m_fbsize = m_size;
 #endif
 
-#if defined(_WIN32) || defined(__linux__) || defined(EMSCRIPTEN)
+#if defined(EMSCRIPTEN)
     m_fbsize = m_size;
     m_size = Vector2i(Vector2f(m_size) / m_pixel_ratio);
+#elif defined(_WIN32) || defined(__linux__)
+    /* Size from the framebuffer, not the window: on Wayland the window size is
+       in logical units and the framebuffer is that times the output scale, so
+       a window-sized viewport only covers the bottom-left corner. On X11 and
+       Win32 the two are equal and this is unchanged. */
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);
 #else
     /* Recompute pixel ratio on OSX */
     if (m_size[0])
@@ -733,6 +742,17 @@ void Screen::redraw() {
 }
 
 void Screen::cursor_pos_callback_event(double x, double y) {
+#if defined(_WIN32) || defined(__linux__)
+    /* Cursor positions arrive in window units; widgets live in framebuffer
+       pixels / pixel ratio. The two units differ on Wayland (see draw_setup()). */
+    int ww = 0, wh = 0, fw = 0, fh = 0;
+    glfwGetWindowSize(m_glfw_window, &ww, &wh);
+    glfwGetFramebufferSize(m_glfw_window, &fw, &fh);
+    if (ww > 0 && wh > 0 && fw > 0 && fh > 0) {
+        x *= (double) fw / ww;
+        y *= (double) fh / wh;
+    }
+#endif
     Vector2i p((int) x, (int) y);
 
 #if defined(_WIN32) || defined(__linux__) || defined(EMSCRIPTEN)
@@ -884,8 +904,8 @@ void Screen::resize_callback_event(int, int) {
         return;
     m_fbsize = fb_size; m_size = size;
 
-#if defined(_WIN32) || defined(__linux__) || defined(EMSCRIPTEN)
-    m_size = Vector2i(Vector2f(m_size) / m_pixel_ratio);
+#if defined(_WIN32) || defined(__linux__)
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);   /* see draw_setup() */
 #endif
 
     m_last_interaction = glfwGetTime();
