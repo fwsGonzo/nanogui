@@ -655,8 +655,7 @@ void Screen::draw_widgets() {
             nvgFontSize(m_nvg_context, 15.0f);
             nvgTextAlign(m_nvg_context, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
             nvgTextLineHeight(m_nvg_context, 1.1f);
-            Vector2i pos = widget->absolute_position() +
-                           Vector2i(widget->width() / 2, widget->height() + 10);
+            Vector2i pos = widget->tooltip_anchor();
 
             nvgTextBounds(m_nvg_context, pos.x(), pos.y(),
                           widget->tooltip().c_str(), nullptr, bounds);

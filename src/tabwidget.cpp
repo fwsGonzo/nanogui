@@ -31,6 +31,9 @@ void TabWidgetBase::remove_tab(int id) {
     bool close_active = index == m_active_tab;
     m_tab_captions.erase(m_tab_captions.begin() + index);
     m_tab_ids.erase(m_tab_ids.begin() + index);
+    m_tab_icons.erase(m_tab_icons.begin() + index);
+    if (m_tooltip_tab >= 0)
+        set_tooltip_tab(-1);
     if (index <= m_active_tab)
         m_active_tab = std::max(0, m_active_tab - 1);
     TabWidgetBase::perform_layout(screen()->nvg_context());
@@ -47,9 +50,10 @@ int TabWidgetBase::insert_tab(int index, const std::string &caption) {
     int id = m_tab_counter++;
     m_tab_captions.insert(m_tab_captions.begin() + index, caption);
     m_tab_ids.insert(m_tab_ids.begin() + index, id);
-    TabWidgetBase::perform_layout(screen()->nvg_context());
+    m_tab_icons.insert(m_tab_icons.begin() + index, 0);
     if (index < m_active_tab)
         m_active_tab++;
+    TabWidgetBase::perform_layout(screen()->nvg_context());
     if (m_tab_ids.size() == 1) {
         m_active_tab = 0;
         if (m_callback)
@@ -63,6 +67,78 @@ int TabWidgetBase::append_tab(const std::string &caption) {
     return insert_tab((int) m_tab_captions.size(), caption);
 }
 
+void TabWidgetBase::set_tab_icon(int id, int icon) {
+    m_tab_icons[tab_index(id)] = icon;
+    TabWidgetBase::perform_layout(screen()->nvg_context());
+    screen()->request_layout();
+}
+
+int TabWidgetBase::tab_icon_size() const {
+    return m_tab_icon_size > 0 ? m_tab_icon_size : int(std::lround(font_size() * 1.5f));
+}
+
+void TabWidgetBase::set_compact_captions(bool value) {
+    if (m_compact_captions == value)
+        return;
+    m_compact_captions = value;
+    set_tooltip_tab(-1);
+    if (screen()) {
+        TabWidgetBase::perform_layout(screen()->nvg_context());
+        screen()->request_layout();
+    }
+}
+
+bool TabWidgetBase::has_tab_icons() const {
+    for (int icon : m_tab_icons)
+        if (icon != 0)
+            return true;
+    return false;
+}
+
+bool TabWidgetBase::tab_caption_shown(int index) const {
+    return !m_compact_captions || m_tab_icons[index] == 0 || index == m_active_tab;
+}
+
+int TabWidgetBase::tab_height() const {
+    const int content = has_tab_icons() ? std::max(font_size(), tab_icon_size()) : font_size();
+    return content + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale));
+}
+
+int TabWidgetBase::tab_button_width(NVGcontext *ctx, int index) const {
+    int width = 2 * int(std::lround(m_theme->m_tab_button_horizontal_padding * m_theme->m_margin_scale));
+    const int icon_size = tab_icon_size();
+    if (m_tab_icons[index] != 0)
+        width += icon_size;
+    if (tab_caption_shown(index)) {
+        float unused[4];
+        nvgFontFace(ctx, m_font.c_str());
+        nvgFontSize(ctx, font_size());
+        nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+        width += int(nvgTextBounds(ctx, 0, 0, m_tab_captions[index].c_str(), nullptr, unused));
+        if (m_tab_icons[index] != 0)
+            width += icon_size / 4;
+    }
+    if (m_tabs_closeable)
+        width += m_close_width;
+    return width;
+}
+
+void TabWidgetBase::set_tooltip_tab(int index) {
+    if (index >= 0 && tab_caption_shown(index))
+        index = -1;
+    if (index == m_tooltip_tab)
+        return;
+    m_tooltip_tab = index;
+    m_tooltip = index >= 0 ? m_tab_captions[index] : std::string();
+}
+
+Vector2i TabWidgetBase::tooltip_anchor() const {
+    if (m_tooltip_tab < 0 || m_tooltip_tab + 1 >= int(m_tab_offsets.size()))
+        return Widget::tooltip_anchor();
+    const int center = (m_tab_offsets[m_tooltip_tab] + m_tab_offsets[m_tooltip_tab + 1]) / 2;
+    return absolute_position() + Vector2i(center - m_tab_scroll, tab_height() + 10);
+}
+
 int TabWidgetBase::tab_index(int id) const {
     for (size_t i = 0; i<m_tab_ids.size(); ++i) {
         if (m_tab_ids[i] == id)
@@ -72,6 +148,10 @@ int TabWidgetBase::tab_index(int id) const {
 }
 
 void TabWidgetBase::update_visibility() {
+    // Compact captions follow the selection, so the tab widths do too.
+    if (m_compact_captions && screen())
+        TabWidgetBase::perform_layout(screen()->nvg_context());
+    set_tooltip_tab(-1);
     reveal_selected_tab();
     if (screen()) screen()->request_layout();
 }
@@ -85,8 +165,7 @@ void TabWidgetBase::reveal_selected_tab() {
 }
 
 bool TabWidgetBase::scroll_event(const Vector2i &p, const Vector2f &rel) {
-    const int header = font_size() + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale));
-    if (p.y() - m_pos.y() < header && !m_tab_offsets.empty() && m_tab_offsets.back() > width()) {
+    if (p.y() - m_pos.y() < tab_height() && !m_tab_offsets.empty() && m_tab_offsets.back() > width()) {
         m_tab_scroll = std::clamp(m_tab_scroll - int((rel.x() != 0 ? rel.x() : rel.y()) * 40),
             0, std::max(0, m_tab_offsets.back() - width()));
         screen()->set_needs_redraw(true);
@@ -97,22 +176,17 @@ bool TabWidgetBase::scroll_event(const Vector2i &p, const Vector2f &rel) {
 
 void TabWidgetBase::perform_layout(NVGcontext* ctx) {
     m_tab_offsets.clear();
-    nvgFontFace(ctx, m_font.c_str());
-    nvgFontSize(ctx, font_size());
-    nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 
     int width = 0;
-    float unused[4];
-    for (const std::string &label : m_tab_captions) {
-        int label_width = nvgTextBounds(ctx, 0, 0, label.c_str(), nullptr, unused);
+    for (int i = 0; i < tab_count(); ++i) {
         m_tab_offsets.push_back(width);
-        width += label_width + 2 * int(std::lround(m_theme->m_tab_button_horizontal_padding * m_theme->m_margin_scale));
-        if (m_tabs_closeable)
-            width += m_close_width;
+        width += tab_button_width(ctx, i);
     }
     m_tab_offsets.push_back(width);
     reveal_selected_tab();
 
+    float unused[4];
+    nvgFontSize(ctx, font_size());
     nvgFontFace(ctx, "icons");
     m_close_width =
         nvgTextBounds(ctx, 0, 0, utf8(FA_TIMES_CIRCLE).data(), nullptr, unused);
@@ -120,28 +194,20 @@ void TabWidgetBase::perform_layout(NVGcontext* ctx) {
 
 Vector2i TabWidgetBase::preferred_size(NVGcontext* ctx) const {
     const int padding = int(std::lround(m_padding * m_theme->m_margin_scale));
-    nvgFontFace(ctx, m_font.c_str());
-    nvgFontSize(ctx, font_size());
-    nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 
     int width = 0;
-    for (const std::string &label : m_tab_captions) {
-        float unused[4];
-        int label_width = nvgTextBounds(ctx, 0, 0, label.c_str(), nullptr, unused);
-        width += label_width + 2 * int(std::lround(m_theme->m_tab_button_horizontal_padding * m_theme->m_margin_scale));
-        if (m_tabs_closeable)
-            width += m_close_width;
-    }
+    for (int i = 0; i < tab_count(); ++i)
+        width += tab_button_width(ctx, i);
 
-    return Vector2i(width + 1,
-                    font_size() + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale)) + 2*padding);
+    return Vector2i(width + 1, tab_height() + 2*padding);
 }
 
 void TabWidgetBase::draw(NVGcontext* ctx) {
     if (m_tab_offsets.size() != m_tab_captions.size() + 1)
         throw std::runtime_error("Must run TabWidget::perform_layout() after adding/removing tabs!");
 
-    int tab_height = font_size() + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale));
+    const int tab_height = this->tab_height();
+    const int icon_size = tab_icon_size();
 
     if (m_background_color.w() != 0.f) {
         nvgFillColor(ctx, m_background_color);
@@ -166,7 +232,7 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
             y_pos = m_pos.y(),
             width = m_tab_offsets[i + 1] - m_tab_offsets[i];
 
-        NVGcolor textColor;
+        Color textColor;
         if (i == (size_t) m_active_tab) {
             // Active tab uses default text color
             textColor = m_theme->m_text_color;
@@ -195,11 +261,19 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
             nvgStroke(ctx);
         }
         x_pos += int(std::lround(m_theme->m_tab_button_horizontal_padding * m_theme->m_margin_scale));
-        y_pos += int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale)) + 1;
-        nvgFillColor(ctx, textColor);
-        nvgFontFace(ctx, m_font.c_str());
-
-        nvgText(ctx, x_pos, y_pos, m_tab_captions[i].c_str(), nullptr);
+        if (m_tab_icons[i] != 0) {
+            draw_tab_icon(ctx, (int) i, x_pos, y_pos + (tab_height - icon_size) / 2 + 1,
+                          icon_size, textColor);
+            x_pos += icon_size + icon_size / 4;
+        }
+        y_pos += (tab_height - font_size()) / 2 + 1;
+        if (tab_caption_shown((int) i)) {
+            nvgFillColor(ctx, textColor);
+            nvgFontFace(ctx, m_font.c_str());
+            nvgFontSize(ctx, font_size());
+            nvgTextAlign(ctx, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+            nvgText(ctx, x_pos, y_pos, m_tab_captions[i].c_str(), nullptr);
+        }
 
         if (m_tabs_closeable) {
             x_pos = m_pos.x() - m_tab_scroll + m_tab_offsets[i + 1] -
@@ -251,8 +325,30 @@ void TabWidgetBase::draw(NVGcontext* ctx) {
     }
 }
 
+void TabWidgetBase::draw_tab_icon(NVGcontext *ctx, int index, float x, float y,
+                                  float size, const Color &color) {
+    const int icon = m_tab_icons[index];
+    if (nvg_is_font_icon(icon)) {
+        nvgFontFace(ctx, "icons");
+        nvgFontSize(ctx, size);
+        nvgTextAlign(ctx, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+        nvgFillColor(ctx, color);
+        nvgText(ctx, x + size * 0.5f, y + size * 0.5f, utf8(icon).data(), nullptr);
+    } else if (icon > 0) {
+        int w, h;
+        nvgImageSize(ctx, icon, &w, &h);
+        const float scale = size / float(std::max(1, std::max(w, h)));
+        const float iw = w * scale, ih = h * scale;
+        const float ix = x + (size - iw) * 0.5f, iy = y + (size - ih) * 0.5f;
+        nvgBeginPath(ctx);
+        nvgRect(ctx, ix, iy, iw, ih);
+        nvgFillPaint(ctx, nvgImagePattern(ctx, ix, iy, iw, ih, 0, icon, color.a()));
+        nvgFill(ctx);
+    }
+}
+
 std::pair<int, bool> TabWidgetBase::tab_at_position(const Vector2i &p, bool test_vertical) const {
-    int tab_height = font_size() + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale));
+    const int tab_height = this->tab_height();
     if (test_vertical && (p.y() <= m_pos.y() || p.y() > m_pos.y() + tab_height))
         return { -1, false };
 
@@ -357,7 +453,9 @@ bool TabWidgetBase::mouse_button_event(const Vector2i &p, int button, bool down,
     return handled;
 }
 
-bool TabWidgetBase::mouse_enter_event(const Vector2i &/* p */, bool /* enter */) {
+bool TabWidgetBase::mouse_enter_event(const Vector2i &/* p */, bool enter) {
+    if (!enter)
+        set_tooltip_tab(-1);
     if (m_tabs_closeable && m_close_index >= 0) {
         m_close_index = -1;
         m_close_index_pushed = -1;
@@ -369,6 +467,8 @@ bool TabWidgetBase::mouse_enter_event(const Vector2i &/* p */, bool /* enter */)
 bool TabWidgetBase::mouse_motion_event(const Vector2i &p, const Vector2i &rel,
                                        int button, int modifiers) {
     auto [index, close] = tab_at_position(p, false);
+    if (m_compact_captions)
+        set_tooltip_tab(tab_at_position(p).first);
 
     if (m_tab_drag_index != -1) {
         m_tab_drag_end = p.x();
@@ -380,9 +480,10 @@ bool TabWidgetBase::mouse_motion_event(const Vector2i &p, const Vector2i &rel,
                 (m_tab_drag_index > index && p.x() - m_pos.x() + m_tab_scroll < mid)) {
                 std::swap(m_tab_captions[index], m_tab_captions[m_tab_drag_index]);
                 std::swap(m_tab_ids[index], m_tab_ids[m_tab_drag_index]);
-                TabWidgetBase::perform_layout(screen()->nvg_context());
+                std::swap(m_tab_icons[index], m_tab_icons[m_tab_drag_index]);
                 m_tab_drag_index = index;
                 m_active_tab = index;
+                TabWidgetBase::perform_layout(screen()->nvg_context());
             }
         }
         return true;
@@ -407,7 +508,7 @@ void TabWidget::perform_layout(NVGcontext* ctx) {
     const int padding = int(std::lround(m_padding * m_theme->m_margin_scale));
     TabWidgetBase::perform_layout(ctx);
 
-    int tab_height = font_size() + 2 * int(std::lround(m_theme->m_tab_button_vertical_padding * m_theme->m_margin_scale));
+    const int tab_height = this->tab_height();
 
     for (const auto &[id, child] : m_widgets) {
         if (!child->visible()) continue;

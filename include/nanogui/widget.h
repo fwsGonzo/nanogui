@@ -193,6 +193,10 @@ public:
 
     const std::string &tooltip() const { return m_tooltip; }
     void set_tooltip(const std::string &tooltip) { m_tooltip = tooltip; }
+    /// Screen point the tooltip hangs from (its box is centred below it)
+    virtual Vector2i tooltip_anchor() const {
+        return absolute_position() + Vector2i(width() / 2, height() + 10);
+    }
 
     /// Return current font size. If not set the default of the current theme will be returned
     int font_size() const;

@@ -72,6 +72,25 @@ public:
     /// Change the caption of the tab with the given ID
     void set_tab_caption(int id, const std::string &caption) { m_tab_captions[tab_index(id)] = caption; };
 
+    /// Return the icon of the tab with the given ID (0 = none)
+    int tab_icon(int id) const { return m_tab_icons[tab_index(id)]; }
+    /// Set the icon drawn before the caption of the tab with the given ID: a
+    /// font icon, a NanoVG image handle (the Button convention), or a negative
+    /// value a subclass draws itself in draw_tab_icon(). 0 removes it.
+    void set_tab_icon(int id, int icon);
+
+    /// Side of the square a tab icon occupies (0 = derived from the font size)
+    int tab_icon_size() const;
+    void set_tab_icon_size(int size) { m_tab_icon_size = size; }
+
+    /// Whether only the selected tab shows its caption beside its icon. The
+    /// others show the icon alone and offer their caption as a tooltip.
+    bool compact_captions() const { return m_compact_captions; }
+    void set_compact_captions(bool value);
+
+    /// Height of the tab strip
+    int tab_height() const;
+
     /// Return whether tabs provide a close button
     bool tabs_closeable() const { return m_tabs_closeable; }
     void set_tabs_closeable(bool value) { m_tabs_closeable = value; }
@@ -118,16 +137,28 @@ public:
     virtual bool mouse_enter_event(const Vector2i &p, bool enter) override;
     virtual bool mouse_motion_event(const Vector2i &p, const Vector2i &rel, int button,
                                     int modifiers) override;
+    virtual Vector2i tooltip_anchor() const override;
 
 protected:
     std::pair<int, bool> tab_at_position(const Vector2i &p,
                                          bool test_vertical = true) const;
     virtual void update_visibility();
+    /// Draw the icon of the tab at `index` into the square at (x, y)
+    virtual void draw_tab_icon(NVGcontext *ctx, int index, float x, float y,
+                               float size, const Color &color);
+    bool tab_caption_shown(int index) const;
+    bool has_tab_icons() const;
+    int tab_button_width(NVGcontext *ctx, int index) const;
+    void set_tooltip_tab(int index);
 
 protected:
     std::string m_font;
     std::vector<std::string> m_tab_captions;
     std::vector<int> m_tab_ids;
+    std::vector<int> m_tab_icons;
+    int m_tab_icon_size = 0;
+    bool m_compact_captions = false;
+    int m_tooltip_tab = -1;
     int m_tab_scroll = 0;
     void reveal_selected_tab();
     std::vector<int> m_tab_offsets;
