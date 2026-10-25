@@ -17,6 +17,7 @@
 #include <nanogui/window.h>
 #include <nanogui/popup.h>
 #include <nanogui/metal.h>
+#include <cstdlib>
 #include <map>
 #include <iostream>
 
@@ -762,6 +763,16 @@ void Screen::cursor_pos_callback_event(double x, double y) {
     try {
         p -= Vector2i(1, 2);
 
+        if (m_pan_active) {
+            const Vector2i rel = p - m_mouse_pos;
+            const Vector2i overflow = m_pan_widget->overflow();
+            m_pan_widget->scroll_to(m_pan_widget->scroll_offset() -
+                Vector2i(overflow.x() > 0 ? rel.x() : 0, overflow.y() > 0 ? rel.y() : 0));
+            m_mouse_pos = p;
+            m_redraw = true;
+            return;
+        }
+
         bool ret = false;
         if (!m_drag_active) {
             Widget *widget = find_widget(p);
@@ -773,6 +784,11 @@ void Screen::cursor_pos_callback_event(double x, double y) {
             ret = m_drag_widget->mouse_drag_event(
                 p - m_drag_widget->parent()->absolute_position(), p - m_mouse_pos,
                 m_mouse_state, m_modifiers);
+            if (!ret && m_pan_widget && begin_pan(p)) {
+                m_mouse_pos = p;
+                m_redraw = true;
+                return;
+            }
         }
 
         if (!ret)
@@ -809,6 +825,12 @@ bool Screen::mouse_button_callback_event(int button, int action, int modifiers) 
         else
             m_mouse_state &= ~(1 << button);
 
+        // The press that became a pan already released its widget.
+        if (m_pan_active && action == GLFW_RELEASE && button == GLFW_MOUSE_BUTTON_1) {
+            end_pan();
+            return true;
+        }
+
         auto drop_widget = find_widget(m_mouse_pos);
         if (m_drag_active && action == GLFW_RELEASE &&
             drop_widget != m_drag_widget) {
@@ -831,6 +853,15 @@ bool Screen::mouse_button_callback_event(int button, int action, int modifiers) 
             m_drag_active = m_drag_widget != nullptr;
             if (!m_drag_active)
                 update_focus(nullptr);
+            m_pan_widget = nullptr;
+            if (m_touch_pan && button == GLFW_MOUSE_BUTTON_1) {
+                for (Widget *w = m_drag_widget; w != nullptr && w != this; w = w->parent())
+                    if (w->bounded() && w->overflow() != Vector2i(0)) {
+                        m_pan_widget = w;
+                        break;
+                    }
+                m_pan_origin = m_mouse_pos;
+            }
         } else if (m_drag_active && action == GLFW_RELEASE && btn12) {
             m_drag_active = false;
             m_drag_widget = nullptr;
@@ -847,6 +878,24 @@ bool Screen::mouse_button_callback_event(int button, int action, int modifiers) 
     }
 
 	return false;
+}
+
+bool Screen::begin_pan(const Vector2i &p) {
+    const int threshold = 8;
+    const Vector2i d = p - m_pan_origin, overflow = m_pan_widget->overflow();
+    const bool vertical = overflow.y() > 0 && std::abs(d.y()) >= threshold && std::abs(d.y()) > std::abs(d.x());
+    const bool horizontal = overflow.x() > 0 && std::abs(d.x()) >= threshold && std::abs(d.x()) > std::abs(d.y());
+    if (!vertical && !horizontal)
+        return false;
+    // Release the pressed widget off its bounds, so a button lets go without firing.
+    ref<Widget> pressed = m_drag_widget;
+    m_drag_active = false;
+    m_drag_widget = nullptr;
+    pressed->mouse_button_event(Vector2i(-100000), GLFW_MOUSE_BUTTON_1, false, m_modifiers);
+    m_pan_active = true;
+    m_pan_widget->scroll_to(m_pan_widget->scroll_offset() -
+        Vector2i(overflow.x() > 0 ? d.x() : 0, overflow.y() > 0 ? d.y() : 0));
+    return true;
 }
 
 void Screen::key_callback_event(int key, int scancode, int action, int mods) {

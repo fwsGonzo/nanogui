@@ -121,6 +121,10 @@ public:
     Vector2i usable_origin() const { return m_usable_origin; }
     Vector2i usable_size() const { return m_usable_size.x() > 0 ? m_usable_size : max(Vector2i(1), m_size - Vector2i(12)); }
     void set_usable_bounds(Vector2i origin, Vector2i size) { m_usable_origin = origin; m_usable_size = max(Vector2i(1), size); }
+    /// Drag-to-pan: a primary press that moves past a small threshold along a scrollable axis
+    /// of its nearest bounded ancestor scrolls that ancestor and cancels the press, unless the
+    /// pressed widget consumes the drag itself (sliders, text boxes, window headers).
+    void set_touch_pan(bool enabled) { m_touch_pan = enabled; if (!enabled) end_pan(); }
     void request_layout() { m_layout_dirty = true; m_redraw = true; }
     bool layout_dirty() const { return m_layout_dirty; }
     void clear_layout_dirty() { m_layout_dirty = false; }
@@ -292,7 +296,10 @@ public:
         update_focus(nullptr);
         m_drag_widget = nullptr;
         m_drag_active = false;
+        end_pan();
     }
+    bool begin_pan(const Vector2i &p);
+    void end_pan() { m_pan_active = false; m_pan_widget = nullptr; }
 
 protected:
     GLFWwindow *m_glfw_window = nullptr;
@@ -318,6 +325,9 @@ protected:
     bool m_redraw;
     bool m_layout_dirty = true;
     Vector2i m_usable_origin = Vector2i(6), m_usable_size = Vector2i(0);
+    bool m_touch_pan = false, m_pan_active = false;
+    Vector2i m_pan_origin = Vector2i(0);
+    ref<Widget> m_pan_widget;
     std::function<void(Vector2i)> m_resize_callback;
 #if defined(NANOGUI_USE_METAL)
     void *m_metal_texture = nullptr;
