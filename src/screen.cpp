@@ -424,9 +424,7 @@ void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
     glfwGetFramebufferSize(m_glfw_window, &m_fbsize[0], &m_fbsize[1]);
 
     m_pixel_ratio = get_pixel_ratio(window);
-#if defined(_WIN32) || defined(__linux__)
-    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);   /* see draw_setup() */
-#endif
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);   /* see resize_callback_event() */
 
 #if defined(EMSCRIPTEN)
     double w, h;
@@ -970,11 +968,12 @@ void Screen::resize_callback_event(int, int) {
     glfwGetWindowSize(m_glfw_window, &size[0], &size[1]);
     if (fb_size == Vector2i(0, 0) || size == Vector2i(0, 0))
         return;
-    m_fbsize = fb_size; m_size = size;
-
-#if defined(_WIN32) || defined(__linux__)
-    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);   /* see draw_setup() */
-#endif
+    /* The logical size is always the framebuffer over the pixel ratio, which the
+       host may set above the display's own (a GUI scale). Window units are not
+       logical units on every platform: console and mobile shims report the
+       framebuffer as the window size. */
+    m_fbsize = fb_size;
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);
 
     m_last_interaction = glfwGetTime();
 
