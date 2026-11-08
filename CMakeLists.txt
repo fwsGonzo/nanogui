@@ -166,7 +166,9 @@ endif()
 # nvgCreateVk(). On with NANOGUI_VULKAN or the embedding engine's VULKAN_BACKEND.
 option(NANOGUI_VULKAN "Also build the Vulkan NanoVG renderer (ext/nanovg_vulkan)" OFF)
 if (NANOGUI_VULKAN OR VULKAN_BACKEND)
-  find_package(Vulkan REQUIRED)
+  if (NOT TARGET Vulkan::Vulkan)
+    find_package(Vulkan REQUIRED)
+  endif()
   set(NANOGUI_HAS_VULKAN ON)
   list(APPEND NANOGUI_EXTRA
     ext/nanovg_vulkan/src/nanovg_vk.cpp ext/nanovg_vulkan/src/nanovg_vk.h
