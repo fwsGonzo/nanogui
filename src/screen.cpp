@@ -235,7 +235,7 @@ Screen::Screen(const Vector2i &size, const std::string &caption, bool resizable,
     glfwSetInputMode(m_glfw_window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
 #if defined(NANOGUI_GLAD)
-    if (!glad_initialized) {
+    if (!m_external_nvg && !glad_initialized) {
         glad_initialized = true;
         if (!gladLoadGLLoader((GLADloadproc) glfwGetProcAddress))
             throw std::runtime_error("Could not initialize GLAD!");
@@ -411,6 +411,12 @@ Screen::Screen(const Vector2i &size, const std::string &caption, bool resizable,
 #endif
 }
 
+void Screen::initialize(GLFWwindow *window, bool shutdown_glfw, NVGcontext *external_ctx) {
+    m_external_nvg = external_ctx != nullptr;
+    m_nvg_context = external_ctx;
+    initialize(window, shutdown_glfw);
+}
+
 void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
     m_glfw_window = window;
     m_shutdown_glfw = shutdown_glfw;
@@ -444,7 +450,7 @@ void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
 #endif
 
 #if defined(NANOGUI_GLAD)
-    if (!glad_initialized) {
+    if (!m_external_nvg && !glad_initialized) {
         glad_initialized = true;
         if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
             throw std::runtime_error("Could not initialize GLAD!");
@@ -459,19 +465,24 @@ void Screen::initialize(GLFWwindow *window, bool shutdown_glfw) {
     flags |= NVG_DEBUG;
 #endif
 
+    if (m_external_nvg) {
+        (void) flags;
+    }
 #if defined(NANOGUI_USE_OPENGL)
-    m_nvg_context = nvgCreateGL3(flags);
+    else m_nvg_context = nvgCreateGL3(flags);
 #elif defined(NANOGUI_USE_GLES) && NANOGUI_GLES_VERSION == 3
-    m_nvg_context = nvgCreateGLES3(flags);
+    else m_nvg_context = nvgCreateGLES3(flags);
 #elif defined(NANOGUI_USE_GLES)
-    m_nvg_context = nvgCreateGLES2(flags);
+    else m_nvg_context = nvgCreateGLES2(flags);
 #elif defined(NANOGUI_USE_METAL)
+    else {
     void *nswin = glfwGetCocoaWindow(window);
     metal_window_init(nswin, m_float_buffer);
     metal_window_set_size(nswin, m_fbsize);
     m_nvg_context = nvgCreateMTL(metal_layer(),
                                  metal_command_queue(),
                                  flags | NVG_TRIPLE_BUFFER);
+    }
 #endif
 
     if (!m_nvg_context)
@@ -502,7 +513,7 @@ Screen::~Screen() {
             glfwDestroyCursor(m_cursors[i]);
     }
 
-    if (m_nvg_context) {
+    if (m_nvg_context && !m_external_nvg) {
 #if defined(NANOGUI_USE_OPENGL)
         nvgDeleteGL3(m_nvg_context);
 #elif defined(NANOGUI_USE_GLES) && NANOGUI_GLES_VERSION == 3
@@ -548,6 +559,8 @@ void Screen::set_size(const Vector2i &size) {
 }
 
 void Screen::clear() {
+    if (m_external_nvg)
+        return;   /* the owner of the context clears its own targets */
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
     CHK(glClearColor(m_background[0], m_background[1], m_background[2], m_background[3]));
     CHK(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT));
@@ -558,7 +571,8 @@ void Screen::clear() {
 
 void Screen::draw_setup() {
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
-    glfwMakeContextCurrent(m_glfw_window);
+    if (!m_external_nvg)
+        glfwMakeContextCurrent(m_glfw_window);
 #elif defined(NANOGUI_USE_METAL)
     void *nswin = glfwGetCocoaWindow(m_glfw_window);
     metal_window_set_size(nswin, m_fbsize);
@@ -594,13 +608,15 @@ void Screen::draw_setup() {
 #endif
 
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
-    CHK(glViewport(0, 0, m_fbsize[0], m_fbsize[1]));
+    if (!m_external_nvg)
+        CHK(glViewport(0, 0, m_fbsize[0], m_fbsize[1]));
 #endif
 }
 
 void Screen::draw_teardown() {
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
-    glfwSwapBuffers(m_glfw_window);
+    if (!m_external_nvg)
+        glfwSwapBuffers(m_glfw_window);
 #elif defined(NANOGUI_USE_METAL)
     mnvgSetColorTexture(m_nvg_context, nullptr);
     metal_present_and_release_drawable(m_metal_drawable);
@@ -610,6 +626,10 @@ void Screen::draw_teardown() {
 }
 
 void Screen::draw_all() {
+    /* An adopted context draws only inside its owner's frame (which polls
+       needs_redraw()); drawing here would land outside any pass. */
+    if (m_external_nvg)
+        return;
     if (m_redraw) {
         m_redraw = false;
 

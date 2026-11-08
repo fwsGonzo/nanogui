@@ -276,6 +276,11 @@ public:
 
     /// Initialize the \ref Screen
     void initialize(GLFWwindow *window, bool shutdown_glfw);
+    /// Renderer-neutral setup: adopt an NVGcontext built by the caller (e.g. a
+    /// Vulkan NanoVG renderer) instead of creating a GL one. The screen then
+    /// issues no graphics-API calls of its own; the caller owns the context.
+    void initialize(GLFWwindow *window, bool shutdown_glfw, NVGcontext *external_ctx);
+    bool external_nvg() const { return m_external_nvg; }
 
     /* Event handlers */
     void cursor_pos_callback_event(double x, double y);
@@ -304,6 +309,7 @@ public:
 protected:
     GLFWwindow *m_glfw_window = nullptr;
     NVGcontext *m_nvg_context = nullptr;
+    bool m_external_nvg = false;
     GLFWcursor *m_cursors[(size_t) Cursor::CursorCount];
     Cursor m_cursor;
     std::vector<Widget *> m_focus_path;

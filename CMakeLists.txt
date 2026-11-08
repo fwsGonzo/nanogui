@@ -161,6 +161,20 @@ elseif (NANOGUI_BACKEND STREQUAL "Metal")
   message(STATUS "NanoGUI: using Metal backend.")
 endif()
 
+# The Vulkan NanoVG renderer, built next to whichever backend above: a host
+# with its own Vulkan renderer hands Screen::initialize() a context from
+# nvgCreateVk(). On with NANOGUI_VULKAN or the embedding engine's VULKAN_BACKEND.
+option(NANOGUI_VULKAN "Also build the Vulkan NanoVG renderer (ext/nanovg_vulkan)" OFF)
+if (NANOGUI_VULKAN OR VULKAN_BACKEND)
+  find_package(Vulkan REQUIRED)
+  set(NANOGUI_HAS_VULKAN ON)
+  list(APPEND NANOGUI_EXTRA
+    ext/nanovg_vulkan/src/nanovg_vk.cpp ext/nanovg_vulkan/src/nanovg_vk.h
+    ext/nanovg_vulkan/src/nanovg_vk_shaders.h
+  )
+  message(STATUS "NanoGUI: also building the Vulkan NanoVG renderer.")
+endif()
+
 # Shared library mode: add dllimport/dllexport flags to all symbols
 if (NANOGUI_BUILD_SHARED)
   message(STATUS "NanoGUI: building shared library.")
@@ -479,6 +493,13 @@ endif()
 target_include_directories(nanogui PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ext/nanovg/src>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/nanovg>)
+
+if (NANOGUI_HAS_VULKAN)
+  target_compile_definitions(nanogui PUBLIC NANOGUI_HAS_VULKAN=1)
+  target_include_directories(nanogui PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ext/nanovg_vulkan/src>)
+  target_link_libraries(nanogui PUBLIC Vulkan::Vulkan)
+endif()
 
 if (NANOGUI_BUILD_GLAD)
   target_compile_definitions(nanogui PUBLIC -DNANOGUI_GLAD)
