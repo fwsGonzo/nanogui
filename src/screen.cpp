@@ -590,19 +590,20 @@ void Screen::draw_setup() {
 #if defined(EMSCRIPTEN)
     m_fbsize = m_size;
     m_size = Vector2i(Vector2f(m_size) / m_pixel_ratio);
-#elif defined(_WIN32) || defined(__linux__)
-    /* Size from the framebuffer, not the window: on Wayland the window size is
-       in logical units and the framebuffer is that times the output scale, so
-       a window-sized viewport only covers the bottom-left corner. On X11 and
-       Win32 the two are equal and this is unchanged. */
-    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);
-#else
+#elif defined(__APPLE__)
     /* Recompute pixel ratio on OSX */
     if (m_size[0])
         m_pixel_ratio = (float) m_fbsize[0] / (float) m_size[0];
 #if defined(NANOGUI_USE_METAL)
     metal_window_set_content_scale(nswin, m_pixel_ratio);
 #endif
+#else
+    /* Size from the framebuffer, not the window: on Wayland the window size is
+       in logical units and the framebuffer is that times the output scale, so
+       a window-sized viewport only covers the bottom-left corner. Console shims
+       report the framebuffer as the window size, so the ratio the host set
+       (a GUI scale) must not be recomputed from them. */
+    m_size = Vector2i(Vector2f(m_fbsize) / m_pixel_ratio);
 #endif
 
 #if defined(NANOGUI_USE_OPENGL) || defined(NANOGUI_USE_GLES)
@@ -760,7 +761,7 @@ void Screen::redraw() {
 }
 
 void Screen::cursor_pos_callback_event(double x, double y) {
-#if defined(_WIN32) || defined(__linux__)
+#if !defined(__APPLE__) && !defined(EMSCRIPTEN)
     /* Cursor positions arrive in window units; widgets live in framebuffer
        pixels / pixel ratio. The two units differ on Wayland (see draw_setup()). */
     int ww = 0, wh = 0, fw = 0, fh = 0;
@@ -773,7 +774,7 @@ void Screen::cursor_pos_callback_event(double x, double y) {
 #endif
     Vector2i p((int) x, (int) y);
 
-#if defined(_WIN32) || defined(__linux__) || defined(EMSCRIPTEN)
+#if !defined(__APPLE__)
     p = Vector2i(Vector2f(p) / m_pixel_ratio);
 #endif
 
